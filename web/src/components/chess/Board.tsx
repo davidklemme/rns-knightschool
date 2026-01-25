@@ -35,7 +35,7 @@ export function Board({
       className={cn(
         'grid grid-cols-8 grid-rows-8 aspect-square w-full h-full',
         'rounded-lg overflow-hidden shadow-lg',
-        'border-6 border-black',
+        'border-4 border-black',
         className
       )}
     >
