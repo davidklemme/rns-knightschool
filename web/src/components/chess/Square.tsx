@@ -4,13 +4,14 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Piece, getPieceName } from './Piece';
 import { BOARD_COLORS, getHighlightClass } from '@/lib/colors/chess-colors';
-import type { Square as SquareType, PieceType, Color, HighlightType } from '@/lib/chess/types';
+import type { Square as SquareType, PieceType, Color, HighlightType, PieceVisualStatus } from '@/lib/chess/types';
 
 interface SquareProps {
   square: SquareType;
   piece: { type: PieceType; color: Color } | null;
   isLight: boolean;
   highlight: HighlightType;
+  pieceStatus?: PieceVisualStatus;
   onClick: () => void;
   showCoordinates?: boolean;
   isFlipped?: boolean;
@@ -63,6 +64,7 @@ export function Square({
   piece,
   isLight,
   highlight,
+  pieceStatus,
   onClick,
   showCoordinates = false,
   isFlipped = false,
@@ -100,13 +102,25 @@ export function Square({
           type={piece.type}
           color={piece.color}
           isAnimating={highlight === 'lastMoveTo'}
+          status={pieceStatus}
         />
       )}
 
-      {/* Legal move indicator (dot for empty squares) */}
-      {highlight === 'legalMove' && !piece && (
+      {/* Move indicators (colored dots for empty squares) */}
+      {!piece && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-1/4 h-1/4 rounded-full bg-green-500/60" />
+          {/* Safe move - green dot */}
+          {highlight === 'legalMove' && (
+            <div className="w-1/4 h-1/4 rounded-full bg-green-500/60" />
+          )}
+          {/* Risky move - red dot */}
+          {highlight === 'riskyMove' && (
+            <div className="w-1/4 h-1/4 rounded-full bg-red-500/70 ring-2 ring-red-400/50" />
+          )}
+          {/* Leaves piece hanging - orange dot */}
+          {highlight === 'leavesHanging' && (
+            <div className="w-1/4 h-1/4 rounded-full bg-orange-500/70 ring-2 ring-orange-400/50" />
+          )}
         </div>
       )}
 

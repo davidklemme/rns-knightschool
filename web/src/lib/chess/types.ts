@@ -175,3 +175,32 @@ export interface GameSnapshot {
   move: ChessMove | null;
   timestamp: number;
 }
+
+// Move safety analysis result
+export interface MoveSafetyInfo {
+  from: Square;
+  to: Square;
+  isSafe: boolean;              // Destination not attacked
+  isRisky: boolean;             // Destination IS attacked
+  wouldBeDefended: boolean;     // Would have defenders at dest
+  leavesHanging: Square[];      // Our pieces that become hanging
+  materialRisk: number;         // Net material loss risk
+}
+
+// Piece status for visual indicators
+export interface PieceStatus {
+  square: Square;
+  status: 'safe' | 'threatened' | 'hanging';
+  attackers: Square[];
+  defenders: Square[];
+}
+
+export type PieceStatusMap = Map<Square, PieceStatus>;
+export type PieceVisualStatus = 'none' | 'hanging' | 'threatened' | 'wouldAbandon';
+
+// Abandonment warning for lookahead analysis
+export interface AbandonmentWarning {
+  abandonedSquare: Square;
+  pieceType: PieceType;
+  defenderSquare: Square;  // The piece that was defending it (being moved)
+}

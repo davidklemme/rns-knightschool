@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { ChessEngine, createEngine } from '@/lib/chess/engine';
 import { analyzeDanger, getDangerMessage } from '@/lib/chess/danger';
 import { detectTactics, getTacticExplanation } from '@/lib/chess/tactics';
+import { getPieceStatuses, findAbandonmentWarnings } from '@/lib/chess/move-safety';
 import { calculateHighlights } from '@/lib/colors/chess-highlights';
 import type {
   Square,
@@ -17,6 +18,7 @@ import type {
   HighlightMap,
   PlayerMode,
   GameOutcome,
+  PieceVisualStatus,
   SKILL_CONFIGS,
   PLAYER_CONFIGS,
 } from '@/lib/chess/types';
@@ -45,6 +47,7 @@ export interface ChessGameState {
   showDanger: boolean;
   currentTactic: TacticResult | null;
   coachMessage: string | null;
+  pieceStatuses: Map<Square, PieceVisualStatus>;
 
   // Player
   playerName: string | null;
@@ -71,6 +74,7 @@ export interface ChessGameState {
   dismissTactic: () => void;
   cancelPromotion: () => void;
   updateHighlights: () => void;
+  updatePieceStatuses: () => void;
 }
 
 export const useChessStore = create<ChessGameState>((set, get) => ({
@@ -90,6 +94,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   showDanger: true,
   currentTactic: null,
   coachMessage: null,
+  pieceStatuses: new Map(),
   playerName: null,
   playerMode: 'ruby',
   hintSquare: null,
@@ -121,6 +126,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       coachMessage: playerName
         ? `Let's play, ${playerName}! You're ${color === 'w' ? 'White' : 'Black'}.`
         : `Game on! You're ${color === 'w' ? 'White' : 'Black'}.`,
+      pieceStatuses: new Map(),
       hintSquare: null,
       hintsUsed: 0,
       pendingPromotion: null,
@@ -148,6 +154,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     if (piece && piece.color === playerColor) {
       set({ selectedSquare: square, hintSquare: null });
       get().updateHighlights();
+      get().updatePieceStatuses();
       return;
     }
 
@@ -235,6 +242,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
 
     get().updateHighlights();
+    get().updatePieceStatuses();
 
     // If game not over and it's AI's turn, request AI move
     if (!gameEnded && engine.turn !== playerColor) {
@@ -327,6 +335,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
 
     get().updateHighlights();
+    get().updatePieceStatuses();
   },
 
   // Use a hint
@@ -496,5 +505,40 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
 
     set({ highlights });
+  },
+
+  // Update piece statuses (danger indicators, abandonment warnings)
+  updatePieceStatuses: () => {
+    const { engine, selectedSquare, playerColor, showDanger } = get();
+    const statuses = new Map<Square, PieceVisualStatus>();
+
+    // Only show piece statuses if showDanger is enabled
+    if (!showDanger) {
+      set({ pieceStatuses: statuses });
+      return;
+    }
+
+    // Get current danger status for all player's pieces
+    const currentStatuses = getPieceStatuses(engine, playerColor);
+    for (const [square, status] of currentStatuses) {
+      if (status.status === 'hanging') {
+        statuses.set(square, 'hanging');
+      } else if (status.status === 'threatened') {
+        statuses.set(square, 'threatened');
+      }
+    }
+
+    // Add abandonment warnings when a piece is selected
+    if (selectedSquare) {
+      const warnings = findAbandonmentWarnings(engine, selectedSquare, playerColor);
+      for (const warning of warnings) {
+        // Only show wouldAbandon if piece isn't already hanging
+        if (statuses.get(warning.abandonedSquare) !== 'hanging') {
+          statuses.set(warning.abandonedSquare, 'wouldAbandon');
+        }
+      }
+    }
+
+    set({ pieceStatuses: statuses });
   },
 }));

@@ -170,6 +170,33 @@ body {
   animation: slide-capture 0.3s ease-out forwards;
 }
 
+/* Piece danger glow animation */
+@keyframes piece-danger-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.9));
+  }
+}
+
+@keyframes piece-warning-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(249, 115, 22, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.7));
+  }
+}
+
+.animate-piece-danger-glow {
+  animation: piece-danger-glow 1s ease-in-out infinite;
+}
+
+.animate-piece-warning-glow {
+  animation: piece-warning-glow 1.5s ease-in-out infinite;
+}
+
 .text-balance {
   text-wrap: balance;
 }

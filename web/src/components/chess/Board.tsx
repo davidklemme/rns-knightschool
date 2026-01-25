@@ -2,11 +2,12 @@
 
 import { Square } from './Square';
 import { cn } from '@/lib/utils';
-import type { Square as SquareType, PieceType, Color, HighlightMap } from '@/lib/chess/types';
+import type { Square as SquareType, PieceType, Color, HighlightMap, PieceVisualStatus } from '@/lib/chess/types';
 
 interface BoardProps {
   board: ({ type: PieceType; color: Color } | null)[][];
   highlights: HighlightMap;
+  pieceStatuses?: Map<SquareType, PieceVisualStatus>;
   onSquareClick: (square: SquareType) => void;
   isFlipped?: boolean;
   showCoordinates?: boolean;
@@ -19,6 +20,7 @@ interface BoardProps {
 export function Board({
   board,
   highlights,
+  pieceStatuses,
   onSquareClick,
   isFlipped = false,
   showCoordinates = true,
@@ -46,6 +48,8 @@ export function Board({
           const isLight = (row + col) % 2 === 0;
           const highlight = highlights.get(square) || 'none';
 
+          const pieceStatus = pieceStatuses?.get(square);
+
           return (
             <Square
               key={square}
@@ -53,6 +57,7 @@ export function Board({
               piece={piece}
               isLight={isLight}
               highlight={highlight}
+              pieceStatus={pieceStatus}
               onClick={() => onSquareClick(square)}
               showCoordinates={showCoordinates}
               isFlipped={isFlipped}

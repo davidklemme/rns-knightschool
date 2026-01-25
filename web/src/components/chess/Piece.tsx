@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import type { PieceType, Color } from '@/lib/chess/types';
+import type { PieceType, Color, PieceVisualStatus } from '@/lib/chess/types';
 import { cn } from '@/lib/utils';
 import { ANIMATION_DURATIONS } from '@/lib/colors/chess-colors';
 
@@ -9,8 +9,17 @@ interface PieceProps {
   type: PieceType;
   color: Color;
   isAnimating?: boolean;
+  status?: PieceVisualStatus;
   className?: string;
 }
+
+// --- Piece status visual styles ---
+const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
+  none: '',
+  hanging: 'drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-piece-danger-glow',
+  threatened: 'drop-shadow-[0_0_6px_rgba(249,115,22,0.7)]',
+  wouldAbandon: 'drop-shadow-[0_0_6px_rgba(249,115,22,0.6)] animate-piece-warning-glow',
+};
 
 // --- Piece character mapping (using array-based lookup) ---
 // Use filled (solid) characters for both colors, styled via CSS
@@ -37,10 +46,12 @@ const PIECE_NAMES: Record<PieceType, string> = {
 /**
  * Chess piece component with Unicode characters
  * Larger size for better visibility, longer animation for move tracking
+ * Supports status indicators (hanging, threatened, wouldAbandon)
  */
-export function Piece({ type, color, isAnimating, className }: PieceProps) {
+export function Piece({ type, color, isAnimating, status = 'none', className }: PieceProps) {
   const isWhite = color === 'w';
   const char = PIECE_CHARS[type][color];
+  const statusStyle = PIECE_STATUS_STYLES[status];
 
   // Animation variants
   const variants = {
@@ -60,7 +71,7 @@ export function Piece({ type, color, isAnimating, className }: PieceProps) {
         duration: ANIMATION_DURATIONS.pieceMove,
       }}
       className={cn(
-        'w-full h-full flex items-center justify-center select-none pointer-events-none',
+        'w-full h-full flex items-center justify-center select-none pointer-events-none relative',
         className
       )}
     >
@@ -71,7 +82,9 @@ export function Piece({ type, color, isAnimating, className }: PieceProps) {
           'landscape:text-[min(13vh,4rem)]',
           'lg:text-6xl xl:text-7xl',
           // Add depth
-          'drop-shadow-lg'
+          'drop-shadow-lg',
+          // Status-based styling
+          statusStyle
         )}
         style={{
           // White pieces: completely white with subtle shadow for visibility
@@ -89,6 +102,13 @@ export function Piece({ type, color, isAnimating, className }: PieceProps) {
       >
         {char}
       </span>
+
+      {/* Warning badge for pieces that would be abandoned */}
+      {status === 'wouldAbandon' && (
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center shadow-md z-10">
+          <span className="text-white text-xs font-bold leading-none">!</span>
+        </div>
+      )}
     </motion.div>
   );
 }

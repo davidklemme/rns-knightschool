@@ -10,12 +10,12 @@ import type { HighlightType } from '@/lib/chess/types';
 export const CHESS_HIGHLIGHTS: Record<HighlightType, string> = {
   none: '',
   selected: 'ring-4 ring-blue-500 bg-blue-300/70',
-  legalMove: 'bg-green-400/60',
-  legalCapture: 'bg-green-500/70 ring-2 ring-green-600',
-  riskyMove: 'bg-gradient-to-br from-green-400/60 to-red-400/60 ring-2 ring-red-400',
-  riskyCapture: 'bg-gradient-to-br from-green-500/60 to-red-500/60 ring-2 ring-red-500',
-  leavesHanging: 'bg-gradient-to-br from-green-400/60 to-yellow-400/60 ring-2 ring-yellow-500',
-  danger: 'bg-red-400/60 ring-2 ring-red-500 animate-danger-pulse',
+  legalMove: '',  // Uses dot indicator instead
+  legalCapture: 'ring-2 ring-green-500',
+  riskyMove: '',  // Uses dot indicator instead
+  riskyCapture: 'ring-2 ring-red-500',
+  leavesHanging: '',  // Uses dot indicator instead
+  danger: 'ring-2 ring-red-500 animate-danger-pulse',
   inCheck: 'bg-red-500/80 ring-4 ring-red-600 animate-check-pulse',
   tacticSource: 'bg-yellow-400/70 ring-2 ring-yellow-500 animate-tactic-sparkle',
   tacticTarget: 'bg-yellow-300/60 ring-2 ring-yellow-400',
@@ -36,34 +36,34 @@ export interface LegendItem {
 
 export const CHESS_COLOR_LEGEND: LegendItem[] = [
   {
-    color: 'bg-green-400',
-    bgColor: 'bg-green-400/60',
-    label: 'Safe move!',
-    description: 'Green squares are safe places to move',
-  },
-  {
     color: 'bg-green-500',
-    bgColor: 'bg-green-500/70',
+    bgColor: 'bg-green-500/60',
+    label: 'Safe move!',
+    description: 'Green dot means safe place to move',
+  },
+  {
+    color: 'bg-green-600',
+    bgColor: 'ring-2 ring-green-500',
     label: 'Can capture!',
-    description: 'Dark green means you can take a piece safely',
+    description: 'Green ring means you can take a piece safely',
   },
   {
-    color: 'bg-gradient-to-r from-green-400 to-red-400',
-    bgColor: 'bg-gradient-to-br from-green-400/60 to-red-400/60',
+    color: 'bg-red-500',
+    bgColor: 'bg-red-500/70',
     label: 'Risky move!',
-    description: 'Green-to-red means your piece could be captured there',
+    description: 'Red dot means your piece could be captured there',
   },
   {
-    color: 'bg-gradient-to-r from-green-400 to-yellow-400',
-    bgColor: 'bg-gradient-to-br from-green-400/60 to-yellow-400/60',
+    color: 'bg-orange-500',
+    bgColor: 'bg-orange-500/70',
     label: 'Leaves piece!',
-    description: 'Green-to-yellow means moving would leave another piece unprotected',
+    description: 'Orange dot means moving would leave another piece unprotected',
   },
   {
     color: 'bg-red-400',
-    bgColor: 'bg-red-400/60',
+    bgColor: 'ring-2 ring-red-500',
     label: 'In danger!',
-    description: 'Red means your piece is being attacked',
+    description: 'Red ring means your piece is being attacked',
   },
   {
     color: 'bg-yellow-400',
@@ -84,22 +84,22 @@ export const CHESS_COLOR_LEGEND: LegendItem[] = [
  */
 export const CHESS_COLOR_LEGEND_SIMPLE: LegendItem[] = [
   {
-    color: 'bg-green-400',
-    bgColor: 'bg-green-400/60',
+    color: 'bg-green-500',
+    bgColor: 'bg-green-500/60',
     label: 'Go here!',
     description: 'Safe to move',
   },
   {
-    color: 'bg-gradient-to-r from-green-400 to-red-400',
-    bgColor: 'bg-gradient-to-br from-green-400/60 to-red-400/60',
+    color: 'bg-red-500',
+    bgColor: 'bg-red-500/70',
     label: 'Be careful!',
     description: 'Could lose piece',
   },
   {
-    color: 'bg-red-400',
-    bgColor: 'bg-red-400/60',
-    label: 'Danger!',
-    description: 'Watch out!',
+    color: 'bg-orange-500',
+    bgColor: 'bg-orange-500/70',
+    label: 'Watch out!',
+    description: 'Leaves piece',
   },
   {
     color: 'bg-yellow-400',

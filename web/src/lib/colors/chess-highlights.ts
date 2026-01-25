@@ -1,6 +1,7 @@
 import { ChessEngine } from '@/lib/chess/engine';
 import { analyzeDanger, getDangerSquares } from '@/lib/chess/danger';
-import type { Square, Color, HighlightType, HighlightMap, TacticResult, ChessMove } from '@/lib/chess/types';
+import { analyzeAllMoves } from '@/lib/chess/move-safety';
+import type { Square, Color, HighlightType, HighlightMap, TacticResult, ChessMove, MoveSafetyInfo } from '@/lib/chess/types';
 
 /**
  * Highlight calculation functions for RnS KnightSchool
@@ -9,29 +10,73 @@ import type { Square, Color, HighlightType, HighlightMap, TacticResult, ChessMov
  * based on game state and user interactions.
  */
 
+// --- Highlight rule system ---
+
+type HighlightRule = {
+  condition: (safety: MoveSafetyInfo, isCapture: boolean) => boolean;
+  highlight: HighlightType;
+};
+
+// Rules are evaluated in order - first match wins
+const MOVE_HIGHLIGHT_RULES: HighlightRule[] = [
+  // Abandonment: green → orange gradient
+  { condition: (s) => s.leavesHanging.length > 0, highlight: 'leavesHanging' },
+  // Risky capture: green → red gradient (capture but could be recaptured)
+  { condition: (s, cap) => cap && s.isRisky && !s.wouldBeDefended, highlight: 'riskyCapture' },
+  // Risky move: green → red gradient (moving into attack)
+  { condition: (s, cap) => !cap && s.isRisky && !s.wouldBeDefended, highlight: 'riskyMove' },
+  // Safe capture: solid green
+  { condition: (_, cap) => cap, highlight: 'legalCapture' },
+  // Safe move: light green
+  { condition: () => true, highlight: 'legalMove' },
+];
+
+const getHighlightForMove = (safety: MoveSafetyInfo, isCapture: boolean): HighlightType => {
+  for (const rule of MOVE_HIGHLIGHT_RULES) {
+    if (rule.condition(safety, isCapture)) {
+      return rule.highlight;
+    }
+  }
+  return 'legalMove';
+};
+
 /**
  * Create highlight map for legal moves from a selected square
+ * Now uses safety analysis for color-coded destinations
  */
 export function createLegalMoveHighlights(
   engine: ChessEngine,
-  selectedSquare: Square
+  selectedSquare: Square,
+  playerColor?: Color
 ): HighlightMap {
   const highlights: HighlightMap = new Map();
 
   // Add selected square highlight
   highlights.set(selectedSquare, 'selected');
 
+  // Get piece info
+  const piece = engine.get(selectedSquare);
+  if (!piece) return highlights;
+
+  // Use player color if provided, otherwise infer from piece
+  const color = playerColor ?? piece.color;
+
+  // Get safety analysis for all moves from this square
+  const safetyMap = analyzeAllMoves(engine, selectedSquare, color);
+
   // Get legal moves
   const moves = engine.getLegalMoves(selectedSquare);
 
   for (const move of moves) {
     const targetPiece = engine.get(move.to);
-    if (targetPiece) {
-      // Capture move
-      highlights.set(move.to, 'legalCapture');
+    const isCapture = targetPiece !== null;
+    const safety = safetyMap.get(move.to);
+
+    if (safety) {
+      highlights.set(move.to, getHighlightForMove(safety, isCapture));
     } else {
-      // Regular move
-      highlights.set(move.to, 'legalMove');
+      // Fallback if no safety info (shouldn't happen)
+      highlights.set(move.to, isCapture ? 'legalCapture' : 'legalMove');
     }
   }
 
@@ -168,7 +213,7 @@ export function calculateHighlights(
     const piece = engine.get(options.selectedSquare);
     // Only show legal moves for player's pieces
     if (piece && piece.color === options.playerColor) {
-      maps.push(createLegalMoveHighlights(engine, options.selectedSquare));
+      maps.push(createLegalMoveHighlights(engine, options.selectedSquare, options.playerColor));
     }
   }
 
