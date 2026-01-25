@@ -75,6 +75,7 @@ export interface ChessGameState {
   cancelPromotion: () => void;
   updateHighlights: () => void;
   updatePieceStatuses: () => void;
+  setSkillLevel: (skill: SkillLevel) => void;
 }
 
 export const useChessStore = create<ChessGameState>((set, get) => ({
@@ -540,5 +541,18 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     }
 
     set({ pieceStatuses: statuses });
+  },
+
+  // Change skill level mid-game
+  setSkillLevel: (skill: SkillLevel) => {
+    const config = skillConfigs[skill];
+    set({
+      skillLevel: skill,
+      showLegalMoves: config.showLegalMoves,
+      showDanger: config.showDanger,
+      coachMessage: `Difficulty changed to ${config.label}!`,
+    });
+    get().updateHighlights();
+    get().updatePieceStatuses();
   },
 }));

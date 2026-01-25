@@ -56,6 +56,7 @@ export default function PlayPage() {
     dismissTactic,
     cancelPromotion,
     useHint,
+    setSkillLevel,
   } = useChessStore();
 
   // Handle player selection
@@ -120,6 +121,7 @@ export default function PlayPage() {
             skillLevel={skillLevel}
             isThinking={isThinking}
             onNewGame={handleNewGame}
+            onChangeSkill={setSkillLevel}
           />
         }
         board={
