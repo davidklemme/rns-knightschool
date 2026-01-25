@@ -22,17 +22,17 @@ const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
 };
 
 // --- Piece character mapping ---
-// Use filled/solid characters (♚♛♜♝♞♟ U+265A-265F) for BOTH colors
-// CSS styling differentiates white vs black pieces
-// This ensures solid appearance on all platforms including iOS
+// White pieces: outline characters (♔♕♖♗♘♙ U+2654-2659)
+// Black pieces: solid characters (♚♛♜♝♞♟ U+265A-265F)
+// This is the standard Unicode mapping and works reliably on iOS
 
 const PIECE_CHARS: Record<PieceType, Record<Color, string>> = {
-  k: { w: '\u265A', b: '\u265A' },  // ♚ solid king
-  q: { w: '\u265B', b: '\u265B' },  // ♛ solid queen
-  r: { w: '\u265C', b: '\u265C' },  // ♜ solid rook
-  b: { w: '\u265D', b: '\u265D' },  // ♝ solid bishop
-  n: { w: '\u265E', b: '\u265E' },  // ♞ solid knight
-  p: { w: '\u265F', b: '\u265F' },  // ♟ solid pawn
+  k: { w: '\u2654', b: '\u265A' },  // ♔ / ♚
+  q: { w: '\u2655', b: '\u265B' },  // ♕ / ♛
+  r: { w: '\u2656', b: '\u265C' },  // ♖ / ♜
+  b: { w: '\u2657', b: '\u265D' },  // ♗ / ♝
+  n: { w: '\u2658', b: '\u265E' },  // ♘ / ♞
+  p: { w: '\u2659', b: '\u265F' },  // ♙ / ♟
 };
 
 const PIECE_NAMES: Record<PieceType, string> = {
@@ -88,21 +88,15 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
           statusStyle
         )}
         style={{
-          // Force text rendering (not emoji) - critical for iOS
-          // "text" tells the browser to prefer text glyphs over emoji
+          // Prefer symbol fonts over emoji rendering
           fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", Arial, sans-serif',
-          // White pieces: solid white fill with dark outline for visibility
-          // Black pieces: solid dark fill
-          color: isWhite ? '#ffffff' : '#1a1a1a',
-          // Dark stroke around white pieces for definition, subtle stroke on black
-          WebkitTextStroke: isWhite ? '1.5px #2a2a2a' : '0.5px #000000',
-          // Paint order: fill first, then stroke (so stroke is outside)
-          paintOrder: 'fill stroke',
+          // White pieces use outline chars - just need dark color for the outline
+          // Black pieces use solid chars - dark fill
+          color: isWhite ? '#1a1a1a' : '#1a1a1a',
           // Shadow for depth and visibility on all square colors
           textShadow: isWhite
-            ? '0 2px 4px rgba(0,0,0,0.5), 0 0 1px rgba(0,0,0,0.8)'
+            ? '0 2px 4px rgba(0,0,0,0.3)'
             : '0 2px 4px rgba(0,0,0,0.3)',
-          // Ensure pieces fill the square better
           lineHeight: 1,
         }}
       >
