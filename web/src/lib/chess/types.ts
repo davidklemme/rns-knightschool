@@ -6,7 +6,16 @@ export type PieceType = PieceSymbol;
 export type Color = ChessColor;
 
 // Skill levels for the AI opponent
-export type SkillLevel = 'learning' | 'better' | 'challenge' | 'tough';
+export type SkillLevel =
+  | 'learning'
+  | 'better'
+  | 'challenge'
+  | 'tough'
+  | 'advanced'
+  | 'strong'
+  | 'expert'
+  | 'master'
+  | 'grandmaster';
 
 // Configuration for each skill level
 export interface SkillConfig {
@@ -15,52 +24,124 @@ export interface SkillConfig {
   depth: number;
   showLegalMoves: boolean;
   showDanger: boolean;
-  aiMistakeRate: number; // 0-1, chance AI misses best move
+  aiMistakeRate: number; // 0-1, chance AI makes a random move instead of best
   label: string;
   description: string;
+  stockfishSkillLevel: number; // 0-20 Stockfish skill level
+  useMultiThreaded: boolean; // true = multi-threaded engine, false = single-threaded
 }
 
 // Predefined skill configurations
+// Stockfish's UCI_Elo range is 1320-3190. For sub-1320 ELOs we inject random moves.
+// For 1320+, Stockfish handles its own strength limiting.
 export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
   learning: {
     level: 'learning',
     elo: 400,
-    depth: 5,
+    depth: 4,
     showLegalMoves: true,
     showDanger: true,
-    aiMistakeRate: 0.4,
+    aiMistakeRate: 0.6, // 60% random moves for very weak play
     label: 'Learning',
     description: 'All helpers on, friendly AI',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: false,
   },
   better: {
     level: 'better',
     elo: 600,
-    depth: 8,
+    depth: 5,
     showLegalMoves: true,
     showDanger: true,
-    aiMistakeRate: 0.25,
+    aiMistakeRate: 0.45, // 45% random moves
     label: 'Getting Better',
     description: 'Helpers on, smarter AI',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: false,
   },
   challenge: {
     level: 'challenge',
     elo: 800,
-    depth: 10,
+    depth: 6,
     showLegalMoves: false,
     showDanger: true,
-    aiMistakeRate: 0.15,
+    aiMistakeRate: 0.35, // 35% random moves
     label: 'Challenge',
     description: 'Legal moves hidden, skilled AI',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: false,
   },
   tough: {
     level: 'tough',
     elo: 1000,
-    depth: 12,
+    depth: 8,
     showLegalMoves: false,
     showDanger: false,
-    aiMistakeRate: 0.05,
+    aiMistakeRate: 0.25, // 25% random moves
     label: 'Tough',
     description: 'No helpers, strong AI',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: false,
+  },
+  advanced: {
+    level: 'advanced',
+    elo: 1200,
+    depth: 10,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.12, // 12% random moves (still below Stockfish minimum)
+    label: 'Advanced',
+    description: 'Experienced player level',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: false,
+  },
+  strong: {
+    level: 'strong',
+    elo: 1320,
+    depth: 15,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.0, // Stockfish at minimum ELO - no artificial weakening
+    label: 'Strong',
+    description: 'Club player level',
+    stockfishSkillLevel: 0,
+    useMultiThreaded: true,
+  },
+  expert: {
+    level: 'expert',
+    elo: 1500,
+    depth: 18,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.0,
+    label: 'Expert',
+    description: 'Tournament player level',
+    stockfishSkillLevel: 5,
+    useMultiThreaded: true,
+  },
+  master: {
+    level: 'master',
+    elo: 1800,
+    depth: 20,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.0,
+    label: 'Master',
+    description: 'Master level opponent',
+    stockfishSkillLevel: 10,
+    useMultiThreaded: true,
+  },
+  grandmaster: {
+    level: 'grandmaster',
+    elo: 2500,
+    depth: 22,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.0,
+    label: 'Grandmaster',
+    description: 'Elite level challenge',
+    stockfishSkillLevel: 20,
+    useMultiThreaded: true,
   },
 };
 

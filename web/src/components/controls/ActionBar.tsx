@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 
 interface ActionBarProps {
@@ -25,8 +26,10 @@ interface ActionBarProps {
   onNewGame: () => void;
   onToggleLegalMoves: () => void;
   onToggleDanger: () => void;
+  onToggleEval: () => void;
   showLegalMoves: boolean;
   showDanger: boolean;
+  showEval: boolean;
   canUndo: boolean;
   isThinking: boolean;
   isGameOver: boolean;
@@ -43,8 +46,10 @@ export function ActionBar({
   onNewGame,
   onToggleLegalMoves,
   onToggleDanger,
+  onToggleEval,
   showLegalMoves,
   showDanger,
+  showEval,
   canUndo,
   isThinking,
   isGameOver,
@@ -137,6 +142,28 @@ export function ActionBar({
           </TooltipTrigger>
           <TooltipContent>
             {showDanger ? 'Hide danger warnings' : 'Show danger warnings'}
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Toggle Eval Bar */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={showEval ? 'default' : 'outline'}
+              size={isCompact ? 'sm' : 'default'}
+              onClick={onToggleEval}
+              className={cn(
+                'gap-1',
+                showEval &&
+                  'bg-blue-500 hover:bg-blue-600 text-white border-blue-600'
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              {!isCompact && <span>Eval</span>}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {showEval ? 'Hide position evaluation' : 'Show position evaluation'}
           </TooltipContent>
         </Tooltip>
 
