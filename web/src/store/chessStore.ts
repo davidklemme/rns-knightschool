@@ -9,6 +9,7 @@ import { analyzeDanger, getDangerMessage } from '@/lib/chess/danger';
 import { detectTactics, getTacticExplanation } from '@/lib/chess/tactics';
 import { getPieceStatuses, findAbandonmentWarnings } from '@/lib/chess/move-safety';
 import { calculateHighlights } from '@/lib/colors/chess-highlights';
+import { getStockfishService } from '@/lib/chess/stockfish-service';
 import type {
   Square,
   Color,
@@ -23,6 +24,19 @@ import type {
   PLAYER_CONFIGS,
 } from '@/lib/chess/types';
 import { SKILL_CONFIGS as skillConfigs, PLAYER_CONFIGS as playerConfigs } from '@/lib/chess/types';
+
+/**
+ * Parse UCI move format (e.g., "e2e4", "e7e8q") to from/to/promotion
+ */
+const parseUciMove = (uci: string): { from: Square; to: Square; promotion?: 'q' | 'r' | 'b' | 'n' } | null => {
+  if (!uci || uci.length < 4) return null;
+
+  const from = uci.slice(0, 2) as Square;
+  const to = uci.slice(2, 4) as Square;
+  const promotion = uci.length > 4 ? (uci[4] as 'q' | 'r' | 'b' | 'n') : undefined;
+
+  return { from, to, promotion };
+};
 
 export interface ChessGameState {
   // Game engine
@@ -60,6 +74,10 @@ export interface ChessGameState {
   // Promotion state
   pendingPromotion: { from: Square; to: Square } | null;
 
+  // Evaluation
+  evaluation: { score: number; mate: number | null } | null;
+  showEval: boolean;
+
   // Actions
   startNewGame: (color: Color, skill: SkillLevel) => void;
   selectSquare: (square: Square) => void;
@@ -76,6 +94,8 @@ export interface ChessGameState {
   updateHighlights: () => void;
   updatePieceStatuses: () => void;
   setSkillLevel: (skill: SkillLevel) => void;
+  updateEvaluation: () => Promise<void>;
+  toggleEval: () => void;
 }
 
 export const useChessStore = create<ChessGameState>((set, get) => ({
@@ -101,6 +121,8 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   hintSquare: null,
   hintsUsed: 0,
   pendingPromotion: null,
+  evaluation: null,
+  showEval: false,
 
   // Start a new game
   startNewGame: (color: Color, skill: SkillLevel) => {
@@ -108,6 +130,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     const config = skillConfigs[skill];
     const { playerMode, playerName } = get();
     const playerConfig = playerConfigs[playerMode];
+
+    // Sync Stockfish skill level
+    const stockfishService = getStockfishService();
+    stockfishService.setSkillLevel(skill);
 
     set({
       engine,
@@ -131,7 +157,13 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       hintSquare: null,
       hintsUsed: 0,
       pendingPromotion: null,
+      evaluation: null,
     });
+
+    // Update evaluation for starting position if eval bar is visible
+    if (get().showEval) {
+      setTimeout(() => get().updateEvaluation(), 100);
+    }
 
     // If playing black, AI makes first move
     if (color === 'b') {
@@ -245,6 +277,11 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     get().updateHighlights();
     get().updatePieceStatuses();
 
+    // Update evaluation after player move if eval bar is visible
+    if (get().showEval) {
+      get().updateEvaluation();
+    }
+
     // If game not over and it's AI's turn, request AI move
     if (!gameEnded && engine.turn !== playerColor) {
       setTimeout(() => get().requestAIMove(), 500);
@@ -259,10 +296,6 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
     set({ isThinking: true, coachMessage: "Hmm, let me think..." });
 
-    // Simulate AI thinking (in real implementation, this calls Stockfish)
-    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
-
-    const config = skillConfigs[skillLevel];
     const legalMoves = engine.getAllLegalMoves();
 
     if (legalMoves.length === 0) {
@@ -270,33 +303,27 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       return;
     }
 
-    // Simple AI: pick a random move (weighted by captures)
-    // In real implementation, this would call Stockfish with skill level
-    let selectedMove: ChessMove;
+    // Get move from Stockfish
+    const stockfishService = getStockfishService();
+    const currentFen = engine.fen;
+    const uciMove = await stockfishService.getBestMove(currentFen);
 
-    if (Math.random() < config.aiMistakeRate) {
-      // Make a "mistake" - pick a random move
-      selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-    } else {
-      // Pick a "good" move - prefer captures and checks
-      const captures = legalMoves.filter((m) => m.captured);
-      const checks = legalMoves.filter((m) => {
-        const testEngine = engine.clone();
-        testEngine.move(m.from, m.to, m.promotion);
-        return testEngine.isCheck;
-      });
+    // Parse UCI move format
+    const parsedMove = uciMove ? parseUciMove(uciMove) : null;
 
-      if (checks.length > 0) {
-        selectedMove = checks[Math.floor(Math.random() * checks.length)];
-      } else if (captures.length > 0) {
-        selectedMove = captures[Math.floor(Math.random() * captures.length)];
-      } else {
-        selectedMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      }
+    let move: ChessMove | null = null;
+
+    if (parsedMove) {
+      // Make the move using parsed from/to/promotion
+      move = engine.move(parsedMove.from, parsedMove.to, parsedMove.promotion);
     }
 
-    // Make the AI move
-    const move = engine.move(selectedMove.from, selectedMove.to, selectedMove.promotion);
+    // Fallback: if Stockfish failed or returned invalid move, pick a random legal move
+    if (!move) {
+      console.warn('Stockfish move failed, using fallback');
+      const fallbackMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      move = engine.move(fallbackMove.from, fallbackMove.to, fallbackMove.promotion);
+    }
 
     if (!move) {
       set({ isThinking: false });
@@ -337,6 +364,11 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
     get().updateHighlights();
     get().updatePieceStatuses();
+
+    // Update evaluation after AI move if eval bar is visible
+    if (get().showEval) {
+      get().updateEvaluation();
+    }
   },
 
   // Use a hint
@@ -439,6 +471,11 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
 
     get().updateHighlights();
+
+    // Update evaluation after undo if eval bar is visible
+    if (get().showEval) {
+      get().updateEvaluation();
+    }
   },
 
   // Reset to start of game
@@ -554,5 +591,39 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
     get().updateHighlights();
     get().updatePieceStatuses();
+  },
+
+  // Update position evaluation
+  updateEvaluation: async () => {
+    const { engine, isGameOver } = get();
+
+    if (isGameOver) {
+      set({ evaluation: null });
+      return;
+    }
+
+    const stockfishService = getStockfishService();
+    const evalInfo = await stockfishService.getEvaluation(engine.fen, 15);
+
+    if (evalInfo) {
+      set({
+        evaluation: {
+          score: evalInfo.score,
+          mate: evalInfo.mate,
+        },
+      });
+    }
+  },
+
+  // Toggle evaluation bar visibility
+  toggleEval: () => {
+    const { showEval } = get();
+    const newShowEval = !showEval;
+    set({ showEval: newShowEval });
+
+    // If turning on, update the evaluation
+    if (newShowEval) {
+      get().updateEvaluation();
+    }
   },
 }));
