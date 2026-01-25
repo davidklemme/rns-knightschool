@@ -1,0 +1,70 @@
+'use client';
+
+import { Square } from './Square';
+import { cn } from '@/lib/utils';
+import type { Square as SquareType, PieceType, Color, HighlightMap, PieceVisualStatus } from '@/lib/chess/types';
+
+interface BoardProps {
+  board: ({ type: PieceType; color: Color } | null)[][];
+  highlights: HighlightMap;
+  pieceStatuses?: Map<SquareType, PieceVisualStatus>;
+  onSquareClick: (square: SquareType) => void;
+  isFlipped?: boolean;
+  showCoordinates?: boolean;
+  className?: string;
+}
+
+/**
+ * Chess board component - 8x8 grid of squares
+ */
+export function Board({
+  board,
+  highlights,
+  pieceStatuses,
+  onSquareClick,
+  isFlipped = false,
+  showCoordinates = true,
+  className,
+}: BoardProps) {
+  // Generate squares in correct order based on board orientation
+  const rows = isFlipped ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+  const cols = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-8 grid-rows-8 aspect-square w-full h-full',
+        'rounded-lg overflow-hidden shadow-lg',
+        'border-2 border-amber-900',
+        className
+      )}
+    >
+      {rows.map((row) =>
+        cols.map((col) => {
+          const file = String.fromCharCode(97 + col); // a-h
+          const rank = row + 1; // 1-8
+          const square = `${file}${rank}` as SquareType;
+          const piece = board[7 - row][col];
+          const isLight = (row + col) % 2 === 0;
+          const highlight = highlights.get(square) || 'none';
+
+          const pieceStatus = pieceStatuses?.get(square);
+
+          return (
+            <Square
+              key={square}
+              square={square}
+              piece={piece}
+              isLight={isLight}
+              highlight={highlight}
+              pieceStatus={pieceStatus}
+              onClick={() => onSquareClick(square)}
+              showCoordinates={showCoordinates}
+              isFlipped={isFlipped}
+            />
+          );
+        })
+      )}
+    </div>
+  );
+}
