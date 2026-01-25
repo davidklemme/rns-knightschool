@@ -23,7 +23,7 @@ interface HeaderProps {
   className?: string;
 }
 
-const SKILL_LEVELS: SkillLevel[] = ['learning', 'better', 'challenge', 'tough', 'advanced', 'expert', 'master', 'grandmaster'];
+const SKILL_LEVELS: SkillLevel[] = ['learning', 'better', 'challenge', 'tough', 'advanced', 'strong', 'expert', 'master', 'grandmaster'];
 
 /**
  * Game header with player info and controls

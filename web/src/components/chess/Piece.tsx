@@ -22,17 +22,17 @@ const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
 };
 
 // --- Piece character mapping ---
-// White pieces use outline characters (♔♕♖♗♘♙ U+2654-2659)
-// Black pieces use filled characters (♚♛♜♝♞♟ U+265A-265F)
-// This ensures correct rendering across all platforms including iOS
+// Use filled/solid characters (♚♛♜♝♞♟ U+265A-265F) for BOTH colors
+// CSS styling differentiates white vs black pieces
+// This ensures solid appearance on all platforms including iOS
 
 const PIECE_CHARS: Record<PieceType, Record<Color, string>> = {
-  k: { w: '\u2654', b: '\u265A' },  // ♔ outline king / ♚ solid king
-  q: { w: '\u2655', b: '\u265B' },  // ♕ outline queen / ♛ solid queen
-  r: { w: '\u2656', b: '\u265C' },  // ♖ outline rook / ♜ solid rook
-  b: { w: '\u2657', b: '\u265D' },  // ♗ outline bishop / ♝ solid bishop
-  n: { w: '\u2658', b: '\u265E' },  // ♘ outline knight / ♞ solid knight
-  p: { w: '\u2659', b: '\u265F' },  // ♙ outline pawn / ♟ solid pawn
+  k: { w: '\u265A', b: '\u265A' },  // ♚ solid king
+  q: { w: '\u265B', b: '\u265B' },  // ♛ solid queen
+  r: { w: '\u265C', b: '\u265C' },  // ♜ solid rook
+  b: { w: '\u265D', b: '\u265D' },  // ♝ solid bishop
+  n: { w: '\u265E', b: '\u265E' },  // ♞ solid knight
+  p: { w: '\u265F', b: '\u265F' },  // ♟ solid pawn
 };
 
 const PIECE_NAMES: Record<PieceType, string> = {
@@ -88,16 +88,19 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
           statusStyle
         )}
         style={{
-          // Use serif font stack to ensure text rendering (not emoji) on iOS
-          fontFamily: '"Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif',
-          // White pieces use outline chars - render in white with dark stroke for visibility
-          // Black pieces use filled chars - render in dark color
+          // Force text rendering (not emoji) - critical for iOS
+          // "text" tells the browser to prefer text glyphs over emoji
+          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", Arial, sans-serif',
+          // White pieces: solid white fill with dark outline for visibility
+          // Black pieces: solid dark fill
           color: isWhite ? '#ffffff' : '#1a1a1a',
-          // Stroke for better visibility on all board colors
-          WebkitTextStroke: isWhite ? '1px #333333' : '0.5px #000000',
-          // Shadow for depth and visibility
+          // Dark stroke around white pieces for definition, subtle stroke on black
+          WebkitTextStroke: isWhite ? '1.5px #2a2a2a' : '0.5px #000000',
+          // Paint order: fill first, then stroke (so stroke is outside)
+          paintOrder: 'fill stroke',
+          // Shadow for depth and visibility on all square colors
           textShadow: isWhite
-            ? '0 2px 4px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)'
+            ? '0 2px 4px rgba(0,0,0,0.5), 0 0 1px rgba(0,0,0,0.8)'
             : '0 2px 4px rgba(0,0,0,0.3)',
           // Ensure pieces fill the square better
           lineHeight: 1,
