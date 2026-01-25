@@ -21,9 +21,10 @@ const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
   wouldAbandon: 'drop-shadow-[0_0_6px_rgba(249,115,22,0.6)] animate-piece-warning-glow',
 };
 
-// --- Piece character mapping (using array-based lookup) ---
-// Use filled (solid) characters for both colors, styled via CSS
-// The "black" Unicode pieces (♚♛♜♝♞♟) are solid/filled shapes
+// --- Piece character mapping ---
+// Use filled/solid characters (♚♛♜♝♞♟ U+265A-265F) for BOTH colors
+// CSS styling differentiates white vs black pieces
+// This ensures solid appearance on all platforms including iOS
 
 const PIECE_CHARS: Record<PieceType, Record<Color, string>> = {
   k: { w: '\u265A', b: '\u265A' },  // ♚ solid king
@@ -87,15 +88,20 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
           statusStyle
         )}
         style={{
-          // White pieces: completely white with subtle shadow for visibility
-          // Black pieces: dark with slight highlight
+          // Force text rendering (not emoji) - critical for iOS
+          // "text" tells the browser to prefer text glyphs over emoji
+          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", Arial, sans-serif',
+          // White pieces: solid white fill with dark outline for visibility
+          // Black pieces: solid dark fill
           color: isWhite ? '#ffffff' : '#1a1a1a',
-          // White stroke for white pieces, dark for black
-          WebkitTextStroke: isWhite ? '1px #ffffff' : '0.5px #000000',
-          // Shadow for visibility on all square colors
+          // Dark stroke around white pieces for definition, subtle stroke on black
+          WebkitTextStroke: isWhite ? '1.5px #2a2a2a' : '0.5px #000000',
+          // Paint order: fill first, then stroke (so stroke is outside)
+          paintOrder: 'fill stroke',
+          // Shadow for depth and visibility on all square colors
           textShadow: isWhite
-            ? '0 2px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)'
-            : '1px 1px 3px rgba(0,0,0,0.6)',
+            ? '0 2px 4px rgba(0,0,0,0.5), 0 0 1px rgba(0,0,0,0.8)'
+            : '0 2px 4px rgba(0,0,0,0.3)',
           // Ensure pieces fill the square better
           lineHeight: 1,
         }}

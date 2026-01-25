@@ -6,7 +6,7 @@ export type PieceType = PieceSymbol;
 export type Color = ChessColor;
 
 // Skill levels for the AI opponent
-export type SkillLevel = 'learning' | 'better' | 'challenge' | 'tough';
+export type SkillLevel = 'learning' | 'better' | 'challenge' | 'tough' | 'advanced' | 'strong' | 'expert' | 'master' | 'grandmaster';
 
 // Configuration for each skill level
 export interface SkillConfig {
@@ -61,6 +61,56 @@ export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
     aiMistakeRate: 0.05,
     label: 'Tough',
     description: 'No helpers, strong AI',
+  },
+  advanced: {
+    level: 'advanced',
+    elo: 1200,
+    depth: 14,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.03,
+    label: 'Advanced',
+    description: 'Club player strength',
+  },
+  strong: {
+    level: 'strong',
+    elo: 1350,
+    depth: 15,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.025,
+    label: 'Strong',
+    description: 'Experienced club player',
+  },
+  expert: {
+    level: 'expert',
+    elo: 1500,
+    depth: 16,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.02,
+    label: 'Expert',
+    description: 'Tournament player strength',
+  },
+  master: {
+    level: 'master',
+    elo: 1800,
+    depth: 18,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0.01,
+    label: 'Master',
+    description: 'Near-master strength',
+  },
+  grandmaster: {
+    level: 'grandmaster',
+    elo: 2000,
+    depth: 20,
+    showLegalMoves: false,
+    showDanger: false,
+    aiMistakeRate: 0,
+    label: 'Grandmaster',
+    description: 'Maximum strength AI',
   },
 };
 
