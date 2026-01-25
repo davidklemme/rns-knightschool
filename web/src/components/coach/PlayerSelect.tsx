@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+import type { Color } from '@/lib/chess/types';
+
 interface PlayerSelectProps {
-  onSelect: (name: string, mode: 'ruby' | 'sammy') => void;
+  onSelect: (name: string, mode: 'ruby' | 'sammy', color: Color) => void;
 }
 
 const PRESET_PLAYERS = [
@@ -24,10 +26,11 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
   const [showCustom, setShowCustom] = useState(false);
   const [customName, setCustomName] = useState('');
   const [selectedMode, setSelectedMode] = useState<'ruby' | 'sammy'>('ruby');
+  const [selectedColor, setSelectedColor] = useState<Color>('w');
 
   const handleCustomSubmit = () => {
     if (customName.trim()) {
-      onSelect(customName.trim(), selectedMode);
+      onSelect(customName.trim(), selectedMode, selectedColor);
     }
   };
 
@@ -62,12 +65,37 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
                     key={player.name}
                     size="lg"
                     className="text-lg px-8 py-6 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md"
-                    onClick={() => onSelect(player.name, player.mode)}
+                    onClick={() => onSelect(player.name, player.mode, selectedColor)}
                   >
                     <span className="mr-2">{player.emoji}</span>
                     {player.name}
                   </Button>
                 ))}
+              </div>
+
+              {/* Color selection */}
+              <div className="space-y-2">
+                <p className="text-sm text-center text-muted-foreground">
+                  Play as:
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    variant={selectedColor === 'w' ? 'default' : 'outline'}
+                    className={`px-6 ${selectedColor === 'w' ? 'bg-white text-gray-800 border-2 border-amber-500 hover:bg-gray-100' : 'bg-white text-gray-600'}`}
+                    onClick={() => setSelectedColor('w')}
+                  >
+                    <span className="text-xl mr-2">&#9812;</span>
+                    White
+                  </Button>
+                  <Button
+                    variant={selectedColor === 'b' ? 'default' : 'outline'}
+                    className={`px-6 ${selectedColor === 'b' ? 'bg-gray-800 text-white border-2 border-amber-500 hover:bg-gray-700' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+                    onClick={() => setSelectedColor('b')}
+                  >
+                    <span className="text-xl mr-2">&#9818;</span>
+                    Black
+                  </Button>
+                </div>
               </div>
 
               {/* Someone else option */}
@@ -139,7 +167,7 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
 
           {/* Skip option */}
           <button
-            onClick={() => onSelect('', 'ruby')}
+            onClick={() => onSelect('', 'ruby', selectedColor)}
             className="w-full text-center text-sm text-muted-foreground hover:text-gray-600 transition-colors"
           >
             Skip for now

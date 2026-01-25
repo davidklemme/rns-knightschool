@@ -33,12 +33,15 @@ export function Board({
   return (
     <div
       className={cn(
-        'grid grid-cols-8 grid-rows-8 aspect-square w-full h-full',
+        'aspect-square w-full h-full',
         'rounded-lg overflow-hidden shadow-lg',
-        'border-4 border-black',
+        'p-1 bg-neutral-800', // Dark border wrapper
         className
       )}
     >
+      <div
+        className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-sm overflow-hidden"
+      >
       {rows.map((row) =>
         cols.map((col) => {
           const file = String.fromCharCode(97 + col); // a-h
@@ -65,6 +68,7 @@ export function Board({
           );
         })
       )}
+      </div>
     </div>
   );
 }

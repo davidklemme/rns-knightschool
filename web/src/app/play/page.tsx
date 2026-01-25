@@ -5,13 +5,14 @@ import { useChessStore } from '@/store/chessStore';
 import { GameShell } from '@/components/layout/GameShell';
 import { Header } from '@/components/layout/Header';
 import { Board } from '@/components/chess/Board';
+import { EvalBar } from '@/components/chess/EvalBar';
 import { CoachZone } from '@/components/coach/CoachZone';
 import { ActionBar } from '@/components/controls/ActionBar';
 import { PlayerSelect } from '@/components/coach/PlayerSelect';
 import { TacticCelebration } from '@/components/coach/TacticCelebration';
 import { PromotionModal } from '@/components/controls/PromotionModal';
 import { CapturedPieces } from '@/components/chess/CapturedPieces';
-import type { PlayerMode, SkillLevel } from '@/lib/chess/types';
+import type { PlayerMode, SkillLevel, Color } from '@/lib/chess/types';
 import { PLAYER_CONFIGS } from '@/lib/chess/types';
 
 /**
@@ -45,6 +46,8 @@ export default function PlayPage() {
     playerName,
     playerMode,
     pendingPromotion,
+    evaluation,
+    showEval,
     startNewGame,
     selectSquare,
     makeMove,
@@ -53,6 +56,7 @@ export default function PlayPage() {
     setPlayerInfo,
     toggleLegalMoves,
     toggleDanger,
+    toggleEval,
     dismissTactic,
     cancelPromotion,
     useHint,
@@ -61,13 +65,13 @@ export default function PlayPage() {
 
   // Handle player selection
   const handlePlayerSelect = useCallback(
-    (name: string, mode: PlayerMode) => {
+    (name: string, mode: PlayerMode, color: Color) => {
       setPlayerInfo(name || null, mode);
       setShowPlayerSelect(false);
 
       // Start a new game with appropriate skill level
       const config = PLAYER_CONFIGS[mode];
-      startNewGame('w', config.defaultSkillLevel);
+      startNewGame(color, config.defaultSkillLevel);
     },
     [setPlayerInfo, startNewGame]
   );
@@ -125,13 +129,23 @@ export default function PlayPage() {
           />
         }
         board={
-          <Board
-            board={engine.board()}
-            highlights={highlights}
-            onSquareClick={selectSquare}
-            isFlipped={playerColor === 'b'}
-            showCoordinates={true}
-          />
+          <div className="flex gap-1 h-full w-full items-center justify-center">
+            {showEval && (
+              <EvalBar
+                score={evaluation?.score ?? 0}
+                mate={evaluation?.mate ?? null}
+                isFlipped={playerColor === 'b'}
+                className="h-full max-h-[45vh] landscape:max-h-full lg:max-h-[min(100%,500px)]"
+              />
+            )}
+            <Board
+              board={engine.board()}
+              highlights={highlights}
+              onSquareClick={selectSquare}
+              isFlipped={playerColor === 'b'}
+              showCoordinates={true}
+            />
+          </div>
         }
         coach={
           <div className="flex flex-col gap-2">
@@ -158,8 +172,10 @@ export default function PlayPage() {
             onNewGame={handleNewGame}
             onToggleLegalMoves={toggleLegalMoves}
             onToggleDanger={toggleDanger}
+            onToggleEval={toggleEval}
             showLegalMoves={showLegalMoves}
             showDanger={showDanger}
+            showEval={showEval}
             canUndo={historyIndex >= 0}
             isThinking={isThinking}
             isGameOver={isGameOver}
