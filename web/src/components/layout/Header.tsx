@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -61,17 +60,17 @@ export function Header({
     <TooltipProvider delayDuration={300}>
       <div
         className={cn(
-          'flex items-center justify-between gap-4 px-4 py-2',
+          'flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2',
           'bg-white/60 rounded-lg backdrop-blur-sm',
           className
         )}
       >
         {/* Left: Logo and player info */}
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">&#9816;</span>
-          <div>
-            <h1 className="text-lg font-bold text-amber-800">KnightSchool</h1>
-            <p className="text-sm text-gray-600">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span className="text-2xl sm:text-3xl">&#9816;</span>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold text-amber-800 truncate">KnightSchool</h1>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">
               {playerName ? (
                 <>
                   {playerName} {colorEmoji}
@@ -89,7 +88,7 @@ export function Header({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  'px-3 py-1 rounded-full text-sm font-medium',
+                  'px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium',
                   'bg-gradient-to-r from-amber-100 to-orange-100',
                   'border border-amber-300 text-amber-800',
                   'hover:from-amber-200 hover:to-orange-200',
@@ -98,9 +97,9 @@ export function Header({
                 )}
                 disabled={isThinking}
               >
-                <span className="hidden sm:inline">{config.label}</span>
-                <span className="sm:hidden">{config.elo}</span>
-                <ChevronDown className="h-3 w-3" />
+                <span className="truncate max-w-[60px] sm:max-w-none">{config.label}</span>
+                <span className="hidden md:inline text-xs">({config.elo})</span>
+                <ChevronDown className="h-3 w-3 flex-shrink-0" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-48 bg-white border border-gray-200 shadow-lg">
@@ -132,14 +131,14 @@ export function Header({
         </div>
 
         {/* Right: New game button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onNewGame}
-                className="gap-1"
+                className="gap-1 px-2 sm:px-3"
               >
                 <RotateCcw className="h-4 w-4" />
                 <span className="hidden sm:inline">New Game</span>

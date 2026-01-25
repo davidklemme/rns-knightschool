@@ -35,7 +35,7 @@ export function Board({
       className={cn(
         'aspect-square w-full h-full',
         'rounded-lg overflow-hidden shadow-lg',
-        'p-1 bg-neutral-800', // Dark border wrapper
+'p-1 bg-neutral-800', // Dark border wrapper
         className
       )}
     >
