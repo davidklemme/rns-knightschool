@@ -24,15 +24,17 @@ const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
 // --- Piece character mapping ---
 // White pieces: outline characters (♔♕♖♗♘♙ U+2654-2659)
 // Black pieces: solid characters (♚♛♜♝♞♟ U+265A-265F)
-// This is the standard Unicode mapping and works reliably on iOS
+// U+FE0E is the text variation selector - forces text rendering on iOS
+
+const VS = '\uFE0E'; // Variation Selector 15 - force text presentation
 
 const PIECE_CHARS: Record<PieceType, Record<Color, string>> = {
-  k: { w: '\u2654', b: '\u265A' },  // ♔ / ♚
-  q: { w: '\u2655', b: '\u265B' },  // ♕ / ♛
-  r: { w: '\u2656', b: '\u265C' },  // ♖ / ♜
-  b: { w: '\u2657', b: '\u265D' },  // ♗ / ♝
-  n: { w: '\u2658', b: '\u265E' },  // ♘ / ♞
-  p: { w: '\u2659', b: '\u265F' },  // ♙ / ♟
+  k: { w: `\u2654${VS}`, b: `\u265A${VS}` },  // ♔ / ♚
+  q: { w: `\u2655${VS}`, b: `\u265B${VS}` },  // ♕ / ♛
+  r: { w: `\u2656${VS}`, b: `\u265C${VS}` },  // ♖ / ♜
+  b: { w: `\u2657${VS}`, b: `\u265D${VS}` },  // ♗ / ♝
+  n: { w: `\u2658${VS}`, b: `\u265E${VS}` },  // ♘ / ♞
+  p: { w: `\u2659${VS}`, b: `\u265F${VS}` },  // ♙ / ♟
 };
 
 const PIECE_NAMES: Record<PieceType, string> = {
@@ -81,21 +83,21 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
           // Much larger pieces - 85% of square size
           'text-[min(11vw,4rem)] leading-none',
           'landscape:text-[min(13vh,4rem)]',
-          'lg:text-6xl xl:text-7xl',
+          'text-4xl lg:text-6xl xl:text-7xl',
           // Add depth
           'drop-shadow-lg',
           // Status-based styling
           statusStyle
         )}
         style={{
-          // Prefer symbol fonts over emoji rendering
-          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", Arial, sans-serif',
-          // White pieces use outline chars - just need dark color for the outline
-          // Black pieces use solid chars - dark fill
-          color: isWhite ? '#1a1a1a' : '#1a1a1a',
-          // Shadow for depth and visibility on all square colors
+          // Force text rendering, not emoji - critical for iOS Safari
+          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "Apple Symbols", "DejaVu Sans", sans-serif',
+          fontVariantEmoji: 'text',
+          // White outline chars need fill, black solid chars are already filled
+          color: isWhite ? '#f9f9f9' : '#1a1a1a',
+          // Shadow for depth
           textShadow: isWhite
-            ? '0 2px 4px rgba(0,0,0,0.3)'
+            ? '0 2px 4px rgba(0,0,0,0.4)'
             : '0 2px 4px rgba(0,0,0,0.3)',
           lineHeight: 1,
         }}
