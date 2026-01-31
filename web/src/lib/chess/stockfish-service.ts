@@ -148,6 +148,16 @@ export const createStockfishService = (
   const configureStrength = (): void => {
     const targetElo = currentConfig.elo;
 
+    // For grandmaster/master: disable UCI_LimitStrength and let the WASM engine
+    // play at full strength. The WASM Lite build is already significantly weaker
+    // than desktop Stockfish, so UCI_LimitStrength calibrated for desktop makes
+    // the engine far weaker than intended.
+    if (currentConfig.stockfishSkillLevel >= 10) {
+      sendCommand('setoption name UCI_LimitStrength value false');
+      sendCommand(`setoption name Skill Level value ${currentConfig.stockfishSkillLevel}`);
+      return;
+    }
+
     // For ELOs >= 1320, use UCI_Elo directly
     // For ELOs < 1320, use minimum UCI_Elo (1320) + lowest skill level (0)
     // The artificial weakening for sub-1320 is handled by random move selection in getBestMove
@@ -282,7 +292,6 @@ export const createStockfishService = (
       // For sub-1320 ELO: use very limited depth (Stockfish can't play this weak)
       // For 1320+ ELO: let Stockfish use UCI_Elo to limit strength, use configured depth
       const depth = currentConfig.depth;
-      const moveTime = thinkingTime ?? 2000;
 
       if (currentConfig.elo < 1320) {
         // Very limited search for sub-Stockfish-minimum play
@@ -291,7 +300,9 @@ export const createStockfishService = (
         // Use depth-limited search for mid-range
         sendCommand(`go depth ${depth}`);
       } else {
-        // For strong levels, use time-based search for better quality
+        // For master/grandmaster: give WASM engine more time to find strong moves.
+        // WASM is slower than native, so it needs more time to reach comparable depth.
+        const moveTime = thinkingTime ?? (currentConfig.elo >= 2500 ? 5000 : 3000);
         sendCommand(`go movetime ${moveTime}`);
       }
     });

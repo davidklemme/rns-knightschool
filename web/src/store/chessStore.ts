@@ -589,6 +589,11 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       showDanger: config.showDanger,
       coachMessage: `Difficulty changed to ${config.label}!`,
     });
+
+    // Sync Stockfish engine with new skill level
+    const stockfishService = getStockfishService();
+    stockfishService.setSkillLevel(skill);
+
     get().updateHighlights();
     get().updatePieceStatuses();
   },
