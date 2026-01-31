@@ -22,17 +22,19 @@ const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
 };
 
 // --- Piece character mapping ---
-// Use filled/solid characters (♚♛♜♝♞♟ U+265A-265F) for BOTH colors
-// CSS styling differentiates white vs black pieces
-// This ensures solid appearance on all platforms including iOS
+// White pieces: outline characters (♔♕♖♗♘♙ U+2654-2659)
+// Black pieces: solid characters (♚♛♜♝♞♟ U+265A-265F)
+// U+FE0E is the text variation selector - forces text rendering on iOS
+
+const VS = '\uFE0E'; // Variation Selector 15 - force text presentation
 
 const PIECE_CHARS: Record<PieceType, Record<Color, string>> = {
-  k: { w: '\u265A', b: '\u265A' },  // ♚ solid king
-  q: { w: '\u265B', b: '\u265B' },  // ♛ solid queen
-  r: { w: '\u265C', b: '\u265C' },  // ♜ solid rook
-  b: { w: '\u265D', b: '\u265D' },  // ♝ solid bishop
-  n: { w: '\u265E', b: '\u265E' },  // ♞ solid knight
-  p: { w: '\u265F', b: '\u265F' },  // ♟ solid pawn
+  k: { w: `\u2654${VS}`, b: `\u265A${VS}` },  // ♔ / ♚
+  q: { w: `\u2655${VS}`, b: `\u265B${VS}` },  // ♕ / ♛
+  r: { w: `\u2656${VS}`, b: `\u265C${VS}` },  // ♖ / ♜
+  b: { w: `\u2657${VS}`, b: `\u265D${VS}` },  // ♗ / ♝
+  n: { w: `\u2658${VS}`, b: `\u265E${VS}` },  // ♘ / ♞
+  p: { w: `\u2659${VS}`, b: `\u265F${VS}` },  // ♙ / ♟
 };
 
 const PIECE_NAMES: Record<PieceType, string> = {
@@ -81,28 +83,22 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
           // Much larger pieces - 85% of square size
           'text-[min(11vw,4rem)] leading-none',
           'landscape:text-[min(13vh,4rem)]',
-          'lg:text-6xl xl:text-7xl',
+          'text-4xl lg:text-6xl xl:text-7xl',
           // Add depth
           'drop-shadow-lg',
           // Status-based styling
           statusStyle
         )}
         style={{
-          // Force text rendering (not emoji) - critical for iOS
-          // "text" tells the browser to prefer text glyphs over emoji
-          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", Arial, sans-serif',
-          // White pieces: solid white fill with dark outline for visibility
-          // Black pieces: solid dark fill
-          color: isWhite ? '#ffffff' : '#1a1a1a',
-          // Dark stroke around white pieces for definition, subtle stroke on black
-          WebkitTextStroke: isWhite ? '1.5px #2a2a2a' : '0.5px #000000',
-          // Paint order: fill first, then stroke (so stroke is outside)
-          paintOrder: 'fill stroke',
-          // Shadow for depth and visibility on all square colors
+          // Force text rendering, not emoji - critical for iOS Safari
+          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "Apple Symbols", "DejaVu Sans", sans-serif',
+          fontVariantEmoji: 'text',
+          // White outline chars need fill, black solid chars are already filled
+          color: isWhite ? '#f9f9f9' : '#1a1a1a',
+          // Shadow for depth
           textShadow: isWhite
-            ? '0 2px 4px rgba(0,0,0,0.5), 0 0 1px rgba(0,0,0,0.8)'
+            ? '0 2px 4px rgba(0,0,0,0.4)'
             : '0 2px 4px rgba(0,0,0,0.3)',
-          // Ensure pieces fill the square better
           lineHeight: 1,
         }}
       >
