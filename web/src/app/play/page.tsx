@@ -37,6 +37,7 @@ export default function PlayPage() {
     historyIndex,
     selectedSquare,
     highlights,
+    pieceStatuses,
     lastMove,
     isThinking,
     showLegalMoves,
@@ -104,11 +105,18 @@ export default function PlayPage() {
 
   // Determine if in compact/simple mode
   const isSimpleMode = playerMode === 'ruby';
-  const isCompact =
-    typeof window !== 'undefined' &&
-    (window.innerWidth < 640 ||
-      (window.matchMedia('(orientation: landscape)').matches &&
-        window.innerHeight < 500));
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const update = () => {
+      setIsCompact(
+        window.innerWidth < 640 ||
+          (window.matchMedia('(orientation: landscape)').matches && window.innerHeight < 500)
+      );
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   // Player select modal
   if (showPlayerSelect) {
@@ -141,6 +149,7 @@ export default function PlayPage() {
             <Board
               board={engine.board()}
               highlights={highlights}
+              pieceStatuses={pieceStatuses}
               onSquareClick={selectSquare}
               isFlipped={playerColor === 'b'}
               showCoordinates={true}
@@ -188,6 +197,7 @@ export default function PlayPage() {
       <TacticCelebration
         tactic={currentTactic}
         onDismiss={dismissTactic}
+        onPlayAgain={handleNewGame}
         playerName={playerName || undefined}
       />
 

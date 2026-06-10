@@ -91,15 +91,12 @@ export function createDangerHighlights(
   color: Color
 ): HighlightMap {
   const highlights: HighlightMap = new Map();
+  const analysis = analyzeDanger(engine, color);
+  const kingSquare = analysis.isInCheck ? engine.getKingSquare(color) : null;
   const dangerSquares = getDangerSquares(engine, color);
 
   for (const square of dangerSquares) {
-    const analysis = analyzeDanger(engine, color);
-    if (analysis.isInCheck && square === engine.getKingSquare(color)) {
-      highlights.set(square, 'inCheck');
-    } else {
-      highlights.set(square, 'danger');
-    }
+    highlights.set(square, analysis.isInCheck && square === kingSquare ? 'inCheck' : 'danger');
   }
 
   return highlights;

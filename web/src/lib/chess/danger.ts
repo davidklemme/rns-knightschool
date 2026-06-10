@@ -139,7 +139,7 @@ type DangerMessageRule = {
 const DANGER_MESSAGE_RULES: DangerMessageRule[] = [
   {
     condition: (a) => a.isInCheck,
-    message: (_, name) => `${name}'re in check! Move your king to safety!`,
+    message: (_, name) => `${name ? `${name}, you're` : "You're"} in check! Move your king to safety!`,
   },
   {
     condition: (a) => a.hangingPieces.length > 0,

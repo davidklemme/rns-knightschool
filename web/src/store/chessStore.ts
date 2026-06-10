@@ -173,10 +173,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
   // Select a square
   selectSquare: (square: Square) => {
-    const { engine, selectedSquare, playerColor, isThinking, pendingPromotion } = get();
+    const { engine, selectedSquare, playerColor, isThinking, pendingPromotion, isGameOver } = get();
 
-    // Don't allow selection during AI thinking or promotion dialog
-    if (isThinking || pendingPromotion) return;
+    // Don't allow selection when game is over, AI is thinking, or promotion dialog is open
+    if (isGameOver || isThinking || pendingPromotion) return;
 
     // If it's not the player's turn, don't allow selection
     if (engine.turn !== playerColor) return;
@@ -360,6 +360,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       isGameOver: aiGameEnded,
       gameOutcome: aiOutcome,
       coachMessage: aiMessage,
+      currentTactic: null,
     });
 
     get().updateHighlights();
@@ -471,6 +472,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     });
 
     get().updateHighlights();
+    get().updatePieceStatuses();
 
     // Update evaluation after undo if eval bar is visible
     if (get().showEval) {
