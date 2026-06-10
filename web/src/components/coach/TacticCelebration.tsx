@@ -10,6 +10,7 @@ import { getTacticExplanation } from '@/lib/chess/tactics';
 interface TacticCelebrationProps {
   tactic: TacticResult | null;
   onDismiss: () => void;
+  onPlayAgain?: () => void;
   playerName?: string;
 }
 
@@ -21,6 +22,7 @@ interface TacticCelebrationProps {
 export function TacticCelebration({
   tactic,
   onDismiss,
+  onPlayAgain,
   playerName,
 }: TacticCelebrationProps) {
   const [confetti, setConfetti] = useState<Array<{ id: number; style: React.CSSProperties }>>([]);
@@ -127,7 +129,10 @@ export function TacticCelebration({
 
           {/* Dismiss button */}
           <Button
-            onClick={onDismiss}
+            onClick={() => {
+              onDismiss();
+              if (isCheckmate) onPlayAgain?.();
+            }}
             className={cn(
               'w-full',
               isCheckmate
