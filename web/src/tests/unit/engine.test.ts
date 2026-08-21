@@ -14,7 +14,9 @@ describe('ChessEngine', () => {
       const fen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
       const engine = createEngine(fen);
       expect(engine.turn).toBe('b');
-      expect(engine.fen).toBe(fen);
+      // chess.js normalizes the en passant field to '-' when no pawn can
+      // actually capture en passant, so compare piece placement and turn
+      expect(engine.fen.split(' ').slice(0, 2)).toEqual(fen.split(' ').slice(0, 2));
     });
   });
 
@@ -107,11 +109,9 @@ describe('ChessEngine', () => {
 
   describe('check detection', () => {
     it('detects check', () => {
-      // Position with black in check
-      const fen = 'rnbqkbnr/ppppp1pp/5p2/6B1/4P3/8/PPPP1PPP/RN1QKBNR b KQkq - 1 2';
-      const engine = createEngine(fen);
-      // After Qh5+
-      engine.load('rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2');
+      // Black in check after 1.e4 f5 2.Qh5+ (the h5-e8 diagonal is open)
+      const engine = createEngine();
+      engine.load('rnbqkbnr/ppppp1pp/8/5p1Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2');
       expect(engine.isCheck).toBe(true);
     });
 

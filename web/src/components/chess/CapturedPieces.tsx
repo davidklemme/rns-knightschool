@@ -24,11 +24,6 @@ export function CapturedPieces({
 
   for (const move of moveHistory) {
     if (move.captured) {
-      // The captured piece color is opposite to the piece that moved
-      const piece = move.piece;
-      const capturedColor: Color = piece === piece.toLowerCase() ? 'b' : 'w';
-
-      // Find the original piece's color based on who made the move
       // If the move was by white, white captured a black piece
       if (moveHistory.indexOf(move) % 2 === 0) {
         // Even index = white's move

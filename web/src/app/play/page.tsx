@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useChessStore } from '@/store/chessStore';
 import { GameShell } from '@/components/layout/GameShell';
 import { Header } from '@/components/layout/Header';
@@ -12,7 +12,7 @@ import { PlayerSelect } from '@/components/coach/PlayerSelect';
 import { TacticCelebration } from '@/components/coach/TacticCelebration';
 import { PromotionModal } from '@/components/controls/PromotionModal';
 import { CapturedPieces } from '@/components/chess/CapturedPieces';
-import type { PlayerMode, SkillLevel, Color } from '@/lib/chess/types';
+import type { PlayerMode, Color } from '@/lib/chess/types';
 import { PLAYER_CONFIGS } from '@/lib/chess/types';
 
 /**
@@ -35,9 +35,7 @@ export default function PlayPage() {
     isGameOver,
     moveHistory,
     historyIndex,
-    selectedSquare,
     highlights,
-    lastMove,
     isThinking,
     showLegalMoves,
     showDanger,

@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { TacticResult, TacticType } from '@/lib/chess/types';
+import type { TacticResult } from '@/lib/chess/types';
 import { getTacticExplanation } from '@/lib/chess/tactics';
 
 interface TacticCelebrationProps {
@@ -23,18 +23,22 @@ export function TacticCelebration({
   onDismiss,
   playerName,
 }: TacticCelebrationProps) {
-  const [confetti, setConfetti] = useState<Array<{ id: number; style: React.CSSProperties }>>([]);
+  // Generate confetti per celebration. Uses a deterministic scatter (a
+  // pure function of the index) so rendering stays side-effect free.
+  const confetti = useMemo(() => {
+    if (!tactic || tactic.type === 'check') return [];
 
-  // Generate confetti on mount
-  useEffect(() => {
-    if (!tactic || tactic.type === 'check') return;
+    const scatter = (i: number, salt: number): number => {
+      const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+      return x - Math.floor(x);
+    };
 
-    const pieces = Array.from({ length: 30 }, (_, i) => ({
+    return Array.from({ length: 30 }, (_, i) => ({
       id: i,
       style: {
-        left: `${Math.random() * 100}%`,
-        animationDelay: `${Math.random() * 0.5}s`,
-        animationDuration: `${1 + Math.random() * 1}s`,
+        left: `${scatter(i, 1) * 100}%`,
+        animationDelay: `${scatter(i, 2) * 0.5}s`,
+        animationDuration: `${1 + scatter(i, 3)}s`,
         backgroundColor: [
           '#f59e0b', // amber
           '#f97316', // orange
@@ -42,17 +46,17 @@ export function TacticCelebration({
           '#22c55e', // green
           '#3b82f6', // blue
           '#a855f7', // purple
-        ][Math.floor(Math.random() * 6)],
+        ][Math.floor(scatter(i, 4) * 6)],
       } as React.CSSProperties,
     }));
+  }, [tactic]);
 
-    setConfetti(pieces);
+  // Auto-dismiss after 4 seconds (except for checkmate)
+  useEffect(() => {
+    if (!tactic || tactic.type === 'check' || tactic.type === 'checkmate') return;
 
-    // Auto-dismiss after 4 seconds (except for checkmate)
-    if (tactic.type !== 'checkmate') {
-      const timer = setTimeout(onDismiss, 4000);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(timer);
   }, [tactic, onDismiss]);
 
   // Don't show for regular checks
