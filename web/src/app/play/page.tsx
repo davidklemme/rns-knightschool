@@ -12,6 +12,7 @@ import { PlayerSelect } from '@/components/coach/PlayerSelect';
 import { TacticCelebration } from '@/components/coach/TacticCelebration';
 import { PromotionModal } from '@/components/controls/PromotionModal';
 import { CapturedPieces } from '@/components/chess/CapturedPieces';
+import { GameReview } from '@/components/analysis/GameReview';
 import type { PlayerMode, Color } from '@/lib/chess/types';
 import { PLAYER_CONFIGS } from '@/lib/chess/types';
 
@@ -47,6 +48,12 @@ export default function PlayPage() {
     pendingPromotion,
     evaluation,
     showEval,
+    gameAnalysis,
+    isAnalyzing,
+    analysisProgress,
+    showReview,
+    startAnalysis,
+    closeReview,
     startNewGame,
     selectSquare,
     makeMove,
@@ -173,10 +180,14 @@ export default function PlayPage() {
             onToggleLegalMoves={toggleLegalMoves}
             onToggleDanger={toggleDanger}
             onToggleEval={toggleEval}
+            onReview={startAnalysis}
             showLegalMoves={showLegalMoves}
             showDanger={showDanger}
             showEval={showEval}
             canUndo={historyIndex >= 0}
+            canReview={
+              historyIndex >= 0 && (isGameOver || engine.turn === playerColor)
+            }
             isThinking={isThinking}
             isGameOver={isGameOver}
             isCompact={isCompact}
@@ -198,6 +209,17 @@ export default function PlayPage() {
         onSelect={handlePromotion}
         onCancel={cancelPromotion}
       />
+
+      {/* Game review overlay */}
+      {showReview && (
+        <GameReview
+          analysis={gameAnalysis}
+          isAnalyzing={isAnalyzing}
+          progress={analysisProgress}
+          playerColor={playerColor}
+          onClose={closeReview}
+        />
+      )}
     </>
   );
 }
