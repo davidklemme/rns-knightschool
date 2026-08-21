@@ -2,9 +2,7 @@ import type { ChessEngine } from './engine';
 import type {
   Square,
   Color,
-  PieceType,
   MoveSafetyInfo,
-  PieceStatus,
   PieceStatusMap,
   AbandonmentWarning,
 } from './types';
@@ -70,9 +68,16 @@ export const analyzeMoveSafety = (
   if (isRisky && !wouldBeDefended) {
     materialRisk = pieceValue;
   } else if (isRisky && wouldBeDefended) {
-    // Could trade - risk is the piece value minus lowest attacker value
-    // For simplicity, just note some risk exists
-    materialRisk = Math.max(0, pieceValue - 1);
+    // Defended, but a cheaper attacker can still win material by trading
+    // (e.g. a pawn capturing a defended knight nets 2). One-ply estimate:
+    // our piece value minus the cheapest attacker's value.
+    const cheapestAttacker = Math.min(
+      ...attackersAtDest.map((sq) => {
+        const attacker = testEngine.get(sq);
+        return attacker ? PIECE_VALUES[attacker.type] : Infinity;
+      })
+    );
+    materialRisk = Math.max(0, pieceValue - cheapestAttacker);
   }
 
   // Add value of pieces left hanging

@@ -2,6 +2,7 @@ import { ChessEngine } from '@/lib/chess/engine';
 import { analyzeDanger, getDangerSquares } from '@/lib/chess/danger';
 import { analyzeAllMoves } from '@/lib/chess/move-safety';
 import type { Square, Color, HighlightType, HighlightMap, TacticResult, ChessMove, MoveSafetyInfo } from '@/lib/chess/types';
+import type { TeachingHint } from '@/lib/chess/hints';
 
 /**
  * Highlight calculation functions for RnS KnightSchool
@@ -17,14 +18,16 @@ type HighlightRule = {
   highlight: HighlightType;
 };
 
-// Rules are evaluated in order - first match wins
+// Rules are evaluated in order - first match wins.
+// materialRisk covers both undefended destinations and losing trades onto
+// defended squares (e.g. queen takes a pawn that is protected).
 const MOVE_HIGHLIGHT_RULES: HighlightRule[] = [
   // Abandonment: green → orange gradient
   { condition: (s) => s.leavesHanging.length > 0, highlight: 'leavesHanging' },
-  // Risky capture: green → red gradient (capture but could be recaptured)
-  { condition: (s, cap) => cap && s.isRisky && !s.wouldBeDefended, highlight: 'riskyCapture' },
-  // Risky move: green → red gradient (moving into attack)
-  { condition: (s, cap) => !cap && s.isRisky && !s.wouldBeDefended, highlight: 'riskyMove' },
+  // Risky capture: green → red gradient (capture but we lose the trade)
+  { condition: (s, cap) => cap && s.materialRisk > 0, highlight: 'riskyCapture' },
+  // Risky move: green → red gradient (moving into a losing attack)
+  { condition: (s, cap) => !cap && s.materialRisk > 0, highlight: 'riskyMove' },
   // Safe capture: solid green
   { condition: (_, cap) => cap, highlight: 'legalCapture' },
   // Safe move: light green
@@ -137,11 +140,20 @@ export function createLastMoveHighlights(move: ChessMove | null): HighlightMap {
 }
 
 /**
- * Create highlight map for hint
+ * Create highlight map for a teaching hint.
+ *
+ * Shows the whole idea, not just the piece: the piece to move and its
+ * destination glow purple, and the squares the move impacts (fork targets,
+ * the piece being rescued, the enemy king...) glow yellow - the color
+ * language for "look at these together".
  */
-export function createHintHighlight(square: Square): HighlightMap {
+export function createHintHighlight(hint: TeachingHint): HighlightMap {
   const highlights: HighlightMap = new Map();
-  highlights.set(square, 'hint');
+  for (const square of hint.impactSquares) {
+    highlights.set(square, 'tacticTarget');
+  }
+  highlights.set(hint.from, 'hint');
+  highlights.set(hint.to, 'hint');
   return highlights;
 }
 
@@ -189,7 +201,7 @@ export interface HighlightOptions {
   showDanger: boolean;
   lastMove: ChessMove | null;
   currentTactic: TacticResult | null;
-  hintSquare: Square | null;
+  hint: TeachingHint | null;
 }
 
 export function calculateHighlights(
@@ -225,8 +237,8 @@ export function calculateHighlights(
   }
 
   // Hint
-  if (options.hintSquare) {
-    maps.push(createHintHighlight(options.hintSquare));
+  if (options.hint) {
+    maps.push(createHintHighlight(options.hint));
   }
 
   // Tactic highlights (highest priority except for inCheck)

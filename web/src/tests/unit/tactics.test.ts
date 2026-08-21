@@ -10,18 +10,30 @@ import {
 describe('Tactics Detection', () => {
   describe('detectFork', () => {
     it('detects knight fork on king and queen', () => {
-      // Position where knight can fork king and queen
-      const fen = 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4';
-      const engine = createEngine(fen);
+      // Nc7+ forks the queen on a8 and the king on e8
+      const engine = createEngine('q3k3/8/8/3N4/8/8/8/4K3 w - - 0 1');
+      const move = engine.move('d5', 'c7');
+      expect(move).not.toBeNull();
 
-      // Create a position with a knight fork
-      // After Ng5, if there was a setup for knight to fork
-      // For testing, let's use a cleaner fork position
-      const forkFen = 'r1bqkbnr/pppp1ppp/2n5/4N3/4P3/8/PPPP1PPP/RNBQKB1R b KQkq - 0 3';
-      const forkEngine = createEngine(forkFen);
+      const result = detectFork(engine, move!);
+      expect(result).not.toBeNull();
+      expect(result?.type).toBe('fork');
+      expect(result?.targets).toContain('a8');
+      expect(result?.targets).toContain('e8');
+    });
 
-      // Simulate that white just moved knight to e5, forking queen on d7 and something
-      // This is a simplified test - real fork detection would need better setup
+    it('detects a fork right after the move is played (opponent to move)', () => {
+      // Regression: fork detection used legal-move generation, which
+      // returns nothing for the side that just moved - so the app never
+      // celebrated the player's forks.
+      const engine = createEngine('r3k3/8/8/3N4/8/8/8/4K3 w - - 0 1');
+      const move = engine.move('d5', 'c7');
+      expect(move).not.toBeNull();
+
+      const result = detectFork(engine, move!);
+      expect(result).not.toBeNull();
+      expect(result?.targets).toContain('a8');
+      expect(result?.targets).toContain('e8');
     });
 
     it('returns null when no fork exists', () => {
@@ -35,8 +47,8 @@ describe('Tactics Detection', () => {
 
   describe('detectCheck', () => {
     it('detects check', () => {
-      // Position with white giving check
-      const fen = 'rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
+      // White giving check after 1.e4 f5 2.Qh5+
+      const fen = 'rnbqkbnr/ppppp1pp/8/5p1Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
       const engine = createEngine(fen);
       const move = {
         from: 'd1' as const,

@@ -173,23 +173,16 @@ export const createEngine = (fen?: string): ChessEngine => {
     },
 
     // Attack detection
+    //
+    // Uses chess.js attackers() rather than generated moves: moves() only
+    // exist for the side to move and never target own pieces, so a
+    // moves()-based approach can't see attacks on the opponent's turn and
+    // can't see defenders at all.
     isAttacked: (square, byColor) => chess.isAttacked(square, byColor),
 
-    getAttackers: (square, byColor) =>
-      boardToPositions(chess.board())
-        .filter((p) => p.color === byColor)
-        .filter((piece) =>
-          chess.moves({ square: piece.square, verbose: true }).some((m) => m.to === square)
-        )
-        .map((p) => p.square),
+    getAttackers: (square, byColor) => chess.attackers(square, byColor) as Square[],
 
-    getDefenders: (square, color) =>
-      boardToPositions(chess.board())
-        .filter((p) => p.color === color && p.square !== square)
-        .filter((piece) =>
-          chess.moves({ square: piece.square, verbose: true }).some((m) => m.to === square)
-        )
-        .map((p) => p.square),
+    getDefenders: (square, color) => chess.attackers(square, color) as Square[],
 
     getKingSquare: (color) => {
       const king = boardToPositions(chess.board()).find(

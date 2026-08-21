@@ -6,10 +6,11 @@
 import { create } from 'zustand';
 import { ChessEngine, createEngine } from '@/lib/chess/engine';
 import { analyzeDanger, getDangerMessage } from '@/lib/chess/danger';
-import { detectTactics, getTacticExplanation } from '@/lib/chess/tactics';
+import { detectTactics } from '@/lib/chess/tactics';
 import { getPieceStatuses, findAbandonmentWarnings } from '@/lib/chess/move-safety';
+import { getTeachingHint, type TeachingHint } from '@/lib/chess/hints';
 import { calculateHighlights } from '@/lib/colors/chess-highlights';
-import { getStockfishService } from '@/lib/chess/stockfish-service';
+import { getOpponentEngine } from '@/lib/chess/opponent-engine';
 import type {
   Square,
   Color,
@@ -20,8 +21,6 @@ import type {
   PlayerMode,
   GameOutcome,
   PieceVisualStatus,
-  SKILL_CONFIGS,
-  PLAYER_CONFIGS,
 } from '@/lib/chess/types';
 import { SKILL_CONFIGS as skillConfigs, PLAYER_CONFIGS as playerConfigs } from '@/lib/chess/types';
 
@@ -68,7 +67,7 @@ export interface ChessGameState {
   playerMode: PlayerMode;
 
   // Hint state
-  hintSquare: Square | null;
+  activeHint: TeachingHint | null;
   hintsUsed: number;
 
   // Promotion state
@@ -118,7 +117,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   pieceStatuses: new Map(),
   playerName: null,
   playerMode: 'ruby',
-  hintSquare: null,
+  activeHint: null,
   hintsUsed: 0,
   pendingPromotion: null,
   evaluation: null,
@@ -128,12 +127,12 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   startNewGame: (color: Color, skill: SkillLevel) => {
     const engine = createEngine();
     const config = skillConfigs[skill];
-    const { playerMode, playerName } = get();
-    const playerConfig = playerConfigs[playerMode];
+    const { playerName } = get();
 
-    // Sync Stockfish skill level
-    const stockfishService = getStockfishService();
-    stockfishService.setSkillLevel(skill);
+    // Sync opponent engine skill level
+    getOpponentEngine()
+      .setSkillLevel(skill)
+      .catch((error) => console.error('Failed to set AI skill level:', error));
 
     set({
       engine,
@@ -154,7 +153,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
         ? `Let's play, ${playerName}! You're ${color === 'w' ? 'White' : 'Black'}.`
         : `Game on! You're ${color === 'w' ? 'White' : 'Black'}.`,
       pieceStatuses: new Map(),
-      hintSquare: null,
+      activeHint: null,
       hintsUsed: 0,
       pendingPromotion: null,
       evaluation: null,
@@ -183,9 +182,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
     const piece = engine.get(square);
 
-    // If clicking on own piece, select it
+    // If clicking on own piece, select it (keep any active hint visible so
+    // the suggested destination stays highlighted while the piece is held)
     if (piece && piece.color === playerColor) {
-      set({ selectedSquare: square, hintSquare: null });
+      set({ selectedSquare: square });
       get().updateHighlights();
       get().updatePieceStatuses();
       return;
@@ -270,7 +270,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       coachMessage: newMessage,
       isGameOver: gameEnded,
       gameOutcome: newOutcome,
-      hintSquare: null,
+      activeHint: null,
       pendingPromotion: null,
     });
 
@@ -290,7 +290,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
   // Request AI move
   requestAIMove: async () => {
-    const { engine, playerColor, skillLevel, isGameOver } = get();
+    const { engine, playerColor, isGameOver } = get();
 
     if (isGameOver || engine.turn === playerColor) return;
 
@@ -303,10 +303,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       return;
     }
 
-    // Get move from Stockfish
-    const stockfishService = getStockfishService();
+    // Get move from the opponent engine
+    const opponentEngine = getOpponentEngine();
     const currentFen = engine.fen;
-    const uciMove = await stockfishService.getBestMove(currentFen);
+    const uciMove = await opponentEngine.getBestMove(currentFen);
 
     // Parse UCI move format
     const parsedMove = uciMove ? parseUciMove(uciMove) : null;
@@ -371,67 +371,21 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     }
   },
 
-  // Use a hint
+  // Use a hint - picks a teaching move and explains the concept behind it,
+  // highlighting the move AND its second-level impact (fork targets, the
+  // piece to rescue, ...) on the board
   useHint: () => {
-    const { engine, playerColor, isThinking, hintsUsed, playerName } = get();
+    const { engine, playerColor, isThinking, hintsUsed } = get();
 
     if (isThinking || engine.turn !== playerColor) return;
 
-    const legalMoves = engine.getAllLegalMoves();
-    if (legalMoves.length === 0) return;
-
-    // Find a good move to suggest
-    // Priority: Checkmate > Capture > Check > Random
-    let bestMove: ChessMove | null = null;
-
-    for (const move of legalMoves) {
-      const testEngine = engine.clone();
-      testEngine.move(move.from, move.to, move.promotion);
-
-      if (testEngine.isCheckmate) {
-        bestMove = move;
-        break;
-      }
-    }
-
-    if (!bestMove) {
-      const captures = legalMoves.filter((m) => m.captured);
-      if (captures.length > 0) {
-        bestMove = captures[0];
-      }
-    }
-
-    if (!bestMove) {
-      const checks = legalMoves.filter((m) => {
-        const testEngine = engine.clone();
-        testEngine.move(m.from, m.to, m.promotion);
-        return testEngine.isCheck;
-      });
-      if (checks.length > 0) {
-        bestMove = checks[0];
-      }
-    }
-
-    if (!bestMove) {
-      bestMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-    }
-
-    const pieceNames: Record<string, string> = {
-      p: 'pawn',
-      n: 'knight',
-      b: 'bishop',
-      r: 'rook',
-      q: 'queen',
-      k: 'king',
-    };
-
-    const pieceName = pieceNames[bestMove.piece];
-    const name = playerName || 'you';
+    const hint = getTeachingHint(engine, playerColor);
+    if (!hint) return;
 
     set({
-      hintSquare: bestMove.from,
+      activeHint: hint,
       hintsUsed: hintsUsed + 1,
-      coachMessage: `Try moving your ${pieceName}! Tap the highlighted piece.`,
+      coachMessage: hint.message,
       selectedSquare: null,
     });
 
@@ -467,7 +421,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       coachMessage: "Move undone! Try something different.",
       isGameOver: false,
       gameOutcome: null,
-      hintSquare: null,
+      activeHint: null,
     });
 
     get().updateHighlights();
@@ -529,7 +483,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       showDanger,
       lastMove,
       currentTactic,
-      hintSquare,
+      activeHint,
     } = get();
 
     const highlights = calculateHighlights(engine, {
@@ -539,7 +493,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       showDanger,
       lastMove,
       currentTactic,
-      hintSquare,
+      hint: activeHint,
     });
 
     set({ highlights });
@@ -583,6 +537,12 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   // Change skill level mid-game
   setSkillLevel: (skill: SkillLevel) => {
     const config = skillConfigs[skill];
+
+    // Sync the engine - without this the AI keeps playing at the old level
+    getOpponentEngine()
+      .setSkillLevel(skill)
+      .catch((error) => console.error('Failed to update AI skill level:', error));
+
     set({
       skillLevel: skill,
       showLegalMoves: config.showLegalMoves,
@@ -602,8 +562,8 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       return;
     }
 
-    const stockfishService = getStockfishService();
-    const evalInfo = await stockfishService.getEvaluation(engine.fen, 15);
+    const opponentEngine = getOpponentEngine();
+    const evalInfo = await opponentEngine.getEvaluation(engine.fen, 15);
 
     if (evalInfo) {
       set({

@@ -34,6 +34,16 @@ describe('Danger Detection', () => {
   });
 
   describe('findThreatenedPieces', () => {
+    it('shows danger on the player pieces when it is their own turn', () => {
+      // Regression: attack detection used move generation, which only works
+      // for the side to move - so danger glow vanished exactly when the
+      // player needed it (on their turn, right after the AI attacked).
+      const fen = '4k3/8/8/3q4/8/8/3R4/4K3 w - - 0 1';
+      const engine = createEngine(fen);
+      const threatened = findThreatenedPieces(engine, 'w');
+      expect(threatened.some((t) => t.square === 'd2')).toBe(true);
+    });
+
     it('returns empty array at starting position', () => {
       const engine = createEngine();
       const threatened = findThreatenedPieces(engine, 'w');
@@ -51,15 +61,20 @@ describe('Danger Detection', () => {
 
   describe('findHangingPieces', () => {
     it('identifies hanging (undefended attacked) pieces', () => {
-      // Position where knight is hanging
-      const fen = 'rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2';
+      // Black knight on d5 is attacked by the e4 pawn and defended by nothing
+      const fen = 'rnbqkb1r/pppppppp/8/3n4/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
       const engine = createEngine(fen);
-      // After e5, the knight on f6 would be attacked
-      engine.move('e4', 'e5');
       const hanging = findHangingPieces(engine, 'b');
-      // Knight on f6 is attacked by e5 pawn
-      const knight = hanging.find((h) => h.square === 'f6');
+      const knight = hanging.find((h) => h.square === 'd5');
       expect(knight).toBeDefined();
+    });
+
+    it('does NOT report a defended piece as hanging', () => {
+      // Black knight on f6 is attacked by the e5 pawn but defended by the g7 pawn
+      const fen = 'rnbqkb1r/pppppppp/5n2/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+      const engine = createEngine(fen);
+      const hanging = findHangingPieces(engine, 'b');
+      expect(hanging.find((h) => h.square === 'f6')).toBeUndefined();
     });
   });
 
@@ -76,8 +91,8 @@ describe('Danger Detection', () => {
     });
 
     it('detects when king is in check', () => {
-      // Position with black in check
-      const fen = 'rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
+      // Black in check after 1.e4 f5 2.Qh5+ (the h5-e8 diagonal is open)
+      const fen = 'rnbqkbnr/ppppp1pp/8/5p1Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
       const engine = createEngine(fen);
       const analysis = analyzeDanger(engine, 'b');
       expect(analysis.isInCheck).toBe(true);
@@ -154,7 +169,8 @@ describe('Danger Detection', () => {
     });
 
     it('includes king square when in check', () => {
-      const fen = 'rnbqkbnr/pppp1ppp/8/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
+      // Black in check after 1.e4 f5 2.Qh5+
+      const fen = 'rnbqkbnr/ppppp1pp/8/5p1Q/4P3/8/PPPP1PPP/RNB1KBNR b KQkq - 1 2';
       const engine = createEngine(fen);
       const dangerSquares = getDangerSquares(engine, 'b');
       expect(dangerSquares.has('e8')).toBe(true);

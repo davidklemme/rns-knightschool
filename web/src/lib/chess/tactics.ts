@@ -77,26 +77,38 @@ function getRandomMessage(type: TacticType): string {
 }
 
 /**
+ * Squares of enemy pieces attacked by our piece on `fromSquare`.
+ * Turn-independent (works right after our own move, when it's the
+ * opponent's turn and legal move generation returns nothing for us).
+ */
+function getAttackedEnemySquares(
+  engine: ChessEngine,
+  fromSquare: Square,
+  ourColor: Color
+): Square[] {
+  const enemyColor: Color = ourColor === 'w' ? 'b' : 'w';
+  return engine
+    .getPieces(enemyColor)
+    .filter((p) => engine.getAttackers(p.square, ourColor).includes(fromSquare))
+    .map((p) => p.square);
+}
+
+/**
  * Detect if a move creates a fork (attacking 2+ valuable pieces)
  */
 export function detectFork(engine: ChessEngine, move: ChessMove): TacticResult | null {
   const piece = engine.get(move.to);
   if (!piece) return null;
 
-  const enemyColor = piece.color === 'w' ? 'b' : 'w';
-  const attacks = engine.getLegalMoves(move.to);
-
-  // Find valuable pieces being attacked (exclude pawns unless we're attacking multiple)
-  const attackedPieces: Square[] = [];
-  for (const attack of attacks) {
-    const target = engine.get(attack.to);
-    if (target && target.color === enemyColor) {
-      // Consider valuable if not a pawn, or if it's a pawn fork by a pawn (rare but valid)
-      if (PIECE_VALUES[target.type] >= 3 || target.type === 'k') {
-        attackedPieces.push(attack.to);
-      }
+  // Find valuable enemy pieces our moved piece now attacks.
+  // (Attack detection must be turn-independent - after our move it's the
+  // opponent's turn, so we can't use legal move generation here.)
+  const attackedPieces: Square[] = getAttackedEnemySquares(engine, move.to, piece.color).filter(
+    (sq) => {
+      const target = engine.get(sq);
+      return target !== null && (PIECE_VALUES[target.type] >= 3 || target.type === 'k');
     }
-  }
+  );
 
   // Need at least 2 valuable pieces for a fork
   if (attackedPieces.length >= 2) {
@@ -127,19 +139,19 @@ export function detectPin(engine: ChessEngine, move: ChessMove): TacticResult | 
   if (!enemyKingSquare) return null;
 
   // Check if we're attacking along a line that includes the king
-  const attacks = engine.getLegalMoves(move.to);
+  const attackedSquares = getAttackedEnemySquares(engine, move.to, piece.color);
 
-  for (const attack of attacks) {
-    const target = engine.get(attack.to);
-    if (!target || target.color !== enemyColor) continue;
+  for (const attackedSquare of attackedSquares) {
+    const target = engine.get(attackedSquare);
+    if (!target) continue;
 
     // Check if this piece is between our piece and the enemy king
-    const isOnLine = isSquareOnLine(move.to, attack.to, enemyKingSquare);
+    const isOnLine = isSquareOnLine(move.to, attackedSquare, enemyKingSquare);
     if (isOnLine && PIECE_VALUES[target.type] < PIECE_VALUES['k']) {
       return {
         type: 'pin',
         move,
-        targets: [attack.to, enemyKingSquare],
+        targets: [attackedSquare, enemyKingSquare],
         message: getRandomMessage('pin'),
         celebrationEmoji: TACTIC_EMOJIS.pin,
       };
@@ -164,8 +176,9 @@ export function detectSkewer(engine: ChessEngine, move: ChessMove): TacticResult
 
   // Check if we're attacking the king and there's a valuable piece behind
   if (enemyKingSquare) {
-    const attacks = engine.getLegalMoves(move.to);
-    const isAttackingKing = attacks.some((a) => a.to === enemyKingSquare);
+    const isAttackingKing = engine
+      .getAttackers(enemyKingSquare, piece.color)
+      .includes(move.to);
 
     if (isAttackingKing) {
       // Look for pieces behind the king along the attack line
