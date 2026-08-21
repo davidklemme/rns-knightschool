@@ -19,7 +19,7 @@
  */
 
 import type { SkillLevel, SkillConfig } from './types';
-import type { OpponentEngine } from './opponent-engine';
+import type { OpponentEngine, PositionAnalysis } from './opponent-engine';
 import { SKILL_CONFIGS } from './types';
 
 // --- Utility functions ---
@@ -72,6 +72,7 @@ export const createStockfishService = (
   let pendingReady: (() => void) | null = null;
   let pendingBestmove: ((move: string | null) => void) | null = null;
   let lastEvalInfo: EvalInfo | null = null;
+  let lastPv: string[] = [];
 
   // Serialize all engine operations - one UCI search at a time.
   let queueTail: Promise<unknown> = Promise.resolve();
@@ -126,6 +127,12 @@ export const createStockfishService = (
           mate: evalData.mate ?? null,
           depth: evalData.depth,
         };
+        // Keep the principal variation from the same info line, so eval
+        // and line always describe the same search iteration
+        const pvMatch = line.match(/ pv (.+)$/);
+        if (pvMatch) {
+          lastPv = pvMatch[1].trim().split(/\s+/);
+        }
       }
     } else if (line.startsWith('bestmove')) {
       const parts = line.split(' ');
@@ -393,6 +400,39 @@ export const createStockfishService = (
     });
   };
 
+  const analyzePosition = async (
+    fen: string,
+    depth: number = 12
+  ): Promise<PositionAnalysis | null> => {
+    return enqueue(async () => {
+      if (!(await ensureEngine())) {
+        return null;
+      }
+
+      const isBlackToMove = (fen.split(' ')[1] || 'w') === 'b';
+
+      lastEvalInfo = null;
+      lastPv = [];
+
+      applyAnalysisOptions();
+      sendCommand(`position fen ${fen}`);
+      const bestMove = await runSearch(`go depth ${depth}`, 8000);
+
+      const result = lastEvalInfo as EvalInfo | null;
+      if (!result) return null;
+
+      // Stockfish scores from the side to move - normalize to white's view
+      const sign = isBlackToMove ? -1 : 1;
+      return {
+        score: sign * result.score,
+        mate: result.mate !== null ? sign * result.mate : null,
+        depth: result.depth,
+        bestMove,
+        pv: [...lastPv],
+      };
+    });
+  };
+
   const terminate = (): void => {
     if (stockfish) {
       sendCommand('stop');
@@ -413,6 +453,7 @@ export const createStockfishService = (
     setSkillLevel,
     getBestMove,
     getEvaluation,
+    analyzePosition,
     terminate,
     isReady,
   };

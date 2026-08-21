@@ -17,6 +17,7 @@ import {
   EyeOff,
   AlertTriangle,
   BarChart3,
+  Microscope,
 } from 'lucide-react';
 
 interface ActionBarProps {
@@ -27,10 +28,12 @@ interface ActionBarProps {
   onToggleLegalMoves: () => void;
   onToggleDanger: () => void;
   onToggleEval: () => void;
+  onReview: () => void;
   showLegalMoves: boolean;
   showDanger: boolean;
   showEval: boolean;
   canUndo: boolean;
+  canReview: boolean;
   isThinking: boolean;
   isGameOver: boolean;
   isCompact?: boolean;
@@ -47,10 +50,12 @@ export function ActionBar({
   onToggleLegalMoves,
   onToggleDanger,
   onToggleEval,
+  onReview,
   showLegalMoves,
   showDanger,
   showEval,
   canUndo,
+  canReview,
   isThinking,
   isGameOver,
   isCompact,
@@ -165,6 +170,23 @@ export function ActionBar({
           <TooltipContent>
             {showEval ? 'Hide position evaluation' : 'Show position evaluation'}
           </TooltipContent>
+        </Tooltip>
+
+        {/* Game Review */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size={isCompact ? 'sm' : 'default'}
+              onClick={onReview}
+              disabled={!canReview || isThinking}
+              className="gap-1 bg-purple-50 hover:bg-purple-100 border-purple-300"
+            >
+              <Microscope className="h-4 w-4 text-purple-600" />
+              {!isCompact && <span>Review</span>}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Analyze this game move by move</TooltipContent>
         </Tooltip>
 
         {/* Divider */}

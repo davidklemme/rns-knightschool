@@ -11,6 +11,7 @@ import { getPieceStatuses, findAbandonmentWarnings } from '@/lib/chess/move-safe
 import { getTeachingHint, type TeachingHint } from '@/lib/chess/hints';
 import { calculateHighlights } from '@/lib/colors/chess-highlights';
 import { getOpponentEngine } from '@/lib/chess/opponent-engine';
+import { analyzeGame, type GameAnalysis } from '@/lib/analysis/game-analysis';
 import type {
   Square,
   Color,
@@ -77,6 +78,12 @@ export interface ChessGameState {
   evaluation: { score: number; mate: number | null } | null;
   showEval: boolean;
 
+  // Game review
+  gameAnalysis: GameAnalysis | null;
+  isAnalyzing: boolean;
+  analysisProgress: { done: number; total: number } | null;
+  showReview: boolean;
+
   // Actions
   startNewGame: (color: Color, skill: SkillLevel) => void;
   selectSquare: (square: Square) => void;
@@ -95,7 +102,17 @@ export interface ChessGameState {
   setSkillLevel: (skill: SkillLevel) => void;
   updateEvaluation: () => Promise<void>;
   toggleEval: () => void;
+  startAnalysis: () => Promise<void>;
+  closeReview: () => void;
 }
+
+// Set to abort an in-flight game analysis (closing the review, new game)
+let analysisCancelled = false;
+
+// Full-strength search depth per position during game review. Deep enough
+// to catch club-level tactics, shallow enough to review a whole game in
+// well under a minute on the single-threaded WASM build.
+const ANALYSIS_DEPTH = 12;
 
 export const useChessStore = create<ChessGameState>((set, get) => ({
   // Initial state
@@ -122,12 +139,19 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   pendingPromotion: null,
   evaluation: null,
   showEval: false,
+  gameAnalysis: null,
+  isAnalyzing: false,
+  analysisProgress: null,
+  showReview: false,
 
   // Start a new game
   startNewGame: (color: Color, skill: SkillLevel) => {
     const engine = createEngine();
     const config = skillConfigs[skill];
     const { playerName } = get();
+
+    // A review of the previous game is meaningless now
+    analysisCancelled = true;
 
     // Sync opponent engine skill level
     getOpponentEngine()
@@ -157,6 +181,9 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       hintsUsed: 0,
       pendingPromotion: null,
       evaluation: null,
+      gameAnalysis: null,
+      analysisProgress: null,
+      showReview: false,
     });
 
     // Update evaluation for starting position if eval bar is visible
@@ -573,6 +600,83 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
         },
       });
     }
+  },
+
+  // Analyze the game so far and open the review overlay
+  startAnalysis: async () => {
+    const {
+      engine,
+      moveHistory,
+      historyIndex,
+      isThinking,
+      isAnalyzing,
+      isGameOver,
+      playerColor,
+      gameAnalysis,
+    } = get();
+
+    if (isAnalyzing || isThinking) return;
+
+    const moves = moveHistory.slice(0, historyIndex + 1);
+    if (moves.length === 0) return;
+
+    // Analysis shares the serial engine queue with move search - only run
+    // while no AI move can be pending, or the AI would wait behind ~60
+    // full-strength searches
+    if (!isGameOver && engine.turn !== playerColor) return;
+
+    // Same game state already analyzed - just reopen the review
+    const signature = moves.map((m) => m.san).join(' ');
+    if (gameAnalysis && gameAnalysis.signature === signature) {
+      set({ showReview: true });
+      return;
+    }
+
+    const opponentEngine = getOpponentEngine();
+    if (!opponentEngine.analyzePosition) {
+      set({ coachMessage: 'Game review needs the analysis engine.' });
+      return;
+    }
+    const analyzePosition = opponentEngine.analyzePosition;
+
+    analysisCancelled = false;
+    set({
+      isAnalyzing: true,
+      showReview: true,
+      analysisProgress: { done: 0, total: moves.length + 1 },
+    });
+
+    try {
+      const analysis = await analyzeGame(
+        moves,
+        (fen) => analyzePosition(fen, ANALYSIS_DEPTH),
+        (done, total) => set({ analysisProgress: { done, total } }),
+        () => analysisCancelled
+      );
+
+      if (analysis) {
+        set({ gameAnalysis: analysis, showReview: !analysisCancelled });
+      } else if (!analysisCancelled) {
+        set({
+          showReview: false,
+          coachMessage: "Couldn't analyze this game - try again.",
+        });
+      }
+    } catch (error) {
+      console.error('Game analysis failed:', error);
+      set({
+        showReview: false,
+        coachMessage: "Couldn't analyze this game - try again.",
+      });
+    } finally {
+      set({ isAnalyzing: false, analysisProgress: null });
+    }
+  },
+
+  // Close the review overlay (aborts an in-flight analysis)
+  closeReview: () => {
+    analysisCancelled = true;
+    set({ showReview: false });
   },
 
   // Toggle evaluation bar visibility

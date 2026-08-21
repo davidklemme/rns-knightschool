@@ -2,12 +2,13 @@
 
 import { Square } from './Square';
 import { cn } from '@/lib/utils';
-import type { Square as SquareType, PieceType, Color, HighlightMap, PieceVisualStatus } from '@/lib/chess/types';
+import type { Square as SquareType, PieceType, Color, HighlightMap, PieceVisualStatus, ChessMove } from '@/lib/chess/types';
 
 interface BoardProps {
   board: ({ type: PieceType; color: Color } | null)[][];
   highlights: HighlightMap;
   pieceStatuses?: Map<SquareType, PieceVisualStatus>;
+  lastMove?: ChessMove | null;
   onSquareClick: (square: SquareType) => void;
   isFlipped?: boolean;
   showCoordinates?: boolean;
@@ -21,6 +22,7 @@ export function Board({
   board,
   highlights,
   pieceStatuses,
+  lastMove,
   onSquareClick,
   isFlipped = false,
   showCoordinates = true,
@@ -29,6 +31,16 @@ export function Board({
   // Generate squares in correct order based on board orientation
   const rows = isFlipped ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
   const cols = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+
+  // Ghost piece for the square the last move started from. ChessMove doesn't
+  // carry the mover's color, so read it off the piece now on the destination.
+  const ghostPiece = (() => {
+    if (!lastMove) return null;
+    const toCol = lastMove.to.charCodeAt(0) - 97;
+    const toRank = parseInt(lastMove.to[1], 10);
+    const movedPiece = board[8 - toRank]?.[toCol];
+    return movedPiece ? { type: lastMove.piece, color: movedPiece.color } : null;
+  })();
 
   return (
     <div
@@ -61,6 +73,7 @@ export function Board({
               isLight={isLight}
               highlight={highlight}
               pieceStatus={pieceStatus}
+              ghostPiece={lastMove?.from === square ? ghostPiece : null}
               onClick={() => onSquareClick(square)}
               showCoordinates={showCoordinates}
               isFlipped={isFlipped}

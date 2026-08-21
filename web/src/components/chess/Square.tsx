@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Piece, getPieceName } from './Piece';
+import { Piece, GhostPiece, getPieceName } from './Piece';
 import { BOARD_COLORS, getHighlightClass } from '@/lib/colors/chess-colors';
 import type { Square as SquareType, PieceType, Color, HighlightType, PieceVisualStatus } from '@/lib/chess/types';
 
@@ -12,6 +12,8 @@ interface SquareProps {
   isLight: boolean;
   highlight: HighlightType;
   pieceStatus?: PieceVisualStatus;
+  /** Faded grey echo of the piece that just moved away from this square */
+  ghostPiece?: { type: PieceType; color: Color } | null;
   onClick: () => void;
   showCoordinates?: boolean;
   isFlipped?: boolean;
@@ -41,6 +43,14 @@ const ARIA_MODIFIERS: AriaModifier[] = [
     condition: (_, highlight) => highlight === 'hint',
     label: () => ', suggested move',
   },
+  {
+    condition: (_, highlight) => highlight === 'lastMoveFrom',
+    label: () => ', last move started here',
+  },
+  {
+    condition: (_, highlight) => highlight === 'lastMoveTo',
+    label: () => ', last move ended here',
+  },
 ];
 
 const buildAriaLabel = (
@@ -65,6 +75,7 @@ export function Square({
   isLight,
   highlight,
   pieceStatus,
+  ghostPiece,
   onClick,
   showCoordinates = false,
   isFlipped = false,
@@ -104,6 +115,11 @@ export function Square({
           isAnimating={highlight === 'lastMoveTo'}
           status={pieceStatus}
         />
+      )}
+
+      {/* Ghost of the piece that just left this square (hidden while move dots are shown) */}
+      {!piece && ghostPiece && highlight === 'lastMoveFrom' && (
+        <GhostPiece type={ghostPiece.type} color={ghostPiece.color} />
       )}
 
       {/* Move indicators (colored dots for empty squares) */}

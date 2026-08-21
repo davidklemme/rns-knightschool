@@ -17,6 +17,12 @@ export interface EngineEvaluation {
   depth: number;
 }
 
+/** Full-strength analysis of one position, for game review. */
+export interface PositionAnalysis extends EngineEvaluation {
+  bestMove: string | null; // UCI format, null at game-over positions
+  pv: string[]; // Engine's best line as UCI moves, starting with bestMove
+}
+
 export interface OpponentEngine {
   init: () => Promise<void>;
   setSkillLevel: (level: SkillLevel) => Promise<void>;
@@ -24,6 +30,9 @@ export interface OpponentEngine {
    *  "no engine move - caller picks a fallback/teaching move". */
   getBestMove: (fen: string, thinkingTime?: number) => Promise<string | null>;
   getEvaluation: (fen: string, depth?: number) => Promise<EngineEvaluation | null>;
+  /** Full-strength eval + best move + line for game review. Optional -
+   *  engines that can't analyze simply don't offer game review. */
+  analyzePosition?: (fen: string, depth?: number) => Promise<PositionAnalysis | null>;
   terminate: () => void;
   isReady: () => boolean;
 }

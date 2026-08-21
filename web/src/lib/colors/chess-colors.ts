@@ -19,8 +19,8 @@ export const CHESS_HIGHLIGHTS: Record<HighlightType, string> = {
   inCheck: 'bg-red-500/80 ring-4 ring-red-600 animate-check-pulse',
   tacticSource: 'bg-yellow-400/70 ring-2 ring-yellow-500 animate-tactic-sparkle',
   tacticTarget: 'bg-yellow-300/60 ring-2 ring-yellow-400',
-  lastMoveFrom: 'bg-blue-200/50',
-  lastMoveTo: 'bg-blue-300/60',
+  lastMoveFrom: 'bg-blue-300/50 animate-last-move-pulse',
+  lastMoveTo: 'bg-blue-400/60 animate-last-move-pulse',
   hint: 'bg-purple-400/60 ring-2 ring-purple-500 animate-gentle-pulse',
 };
 
@@ -76,6 +76,12 @@ export const CHESS_COLOR_LEGEND: LegendItem[] = [
     bgColor: 'bg-purple-400/60',
     label: 'Hint!',
     description: "Purple shows the coach's suggested move",
+  },
+  {
+    color: 'bg-blue-400',
+    bgColor: 'bg-blue-400/60',
+    label: 'Last move!',
+    description: 'Blue shows the move that was just played - the grey piece marks where it came from',
   },
 ];
 
