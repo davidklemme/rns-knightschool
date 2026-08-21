@@ -13,6 +13,11 @@ interface PieceProps {
   className?: string;
 }
 
+interface GhostPieceProps {
+  type: PieceType;
+  color: Color;
+}
+
 // --- Piece status visual styles ---
 const PIECE_STATUS_STYLES: Record<PieceVisualStatus, string> = {
   none: '',
@@ -112,6 +117,37 @@ export function Piece({ type, color, isAnimating, status = 'none', className }: 
         </div>
       )}
     </motion.div>
+  );
+}
+
+/**
+ * Ghost piece shown on the square a piece just moved away from.
+ * Grey and faded so it reads as "this piece was here" - pulses a few
+ * times right after the move to catch the eye, then rests faded.
+ */
+export function GhostPiece({ type, color }: GhostPieceProps) {
+  const char = PIECE_CHARS[type][color];
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center select-none pointer-events-none">
+      <span
+        className={cn(
+          'text-[min(11vw,4rem)] leading-none',
+          'landscape:text-[min(13vh,4rem)]',
+          'text-4xl lg:text-6xl xl:text-7xl',
+          'opacity-40 animate-ghost-piece-pulse'
+        )}
+        style={{
+          fontFamily: '"Segoe UI Symbol", "Noto Sans Symbols 2", "Apple Symbols", "DejaVu Sans", sans-serif',
+          fontVariantEmoji: 'text',
+          color: '#8a8a8a',
+          lineHeight: 1,
+        }}
+        aria-hidden="true"
+      >
+        {char}
+      </span>
+    </div>
   );
 }
 

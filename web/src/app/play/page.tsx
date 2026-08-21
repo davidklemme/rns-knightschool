@@ -36,6 +36,7 @@ export default function PlayPage() {
     moveHistory,
     historyIndex,
     highlights,
+    lastMove,
     isThinking,
     showLegalMoves,
     showDanger,
@@ -139,6 +140,7 @@ export default function PlayPage() {
             <Board
               board={engine.board()}
               highlights={highlights}
+              lastMove={lastMove}
               onSquareClick={selectSquare}
               isFlipped={playerColor === 'b'}
               showCoordinates={true}
