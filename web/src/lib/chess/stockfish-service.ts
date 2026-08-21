@@ -19,6 +19,7 @@
  */
 
 import type { SkillLevel, SkillConfig } from './types';
+import type { OpponentEngine } from './opponent-engine';
 import { SKILL_CONFIGS } from './types';
 
 // --- Utility functions ---
@@ -57,14 +58,9 @@ export interface EvalInfo {
   depth: number;
 }
 
-export interface StockfishService {
-  init: () => Promise<void>;
-  setSkillLevel: (level: SkillLevel) => Promise<void>;
-  getBestMove: (fen: string, thinkingTime?: number) => Promise<string | null>;
-  getEvaluation: (fen: string, depth?: number) => Promise<EvalInfo | null>;
-  terminate: () => void;
-  isReady: () => boolean;
-}
+// Stockfish is one OpponentEngine implementation; the app depends on the
+// interface (see opponent-engine.ts), not on this service directly.
+export type StockfishService = OpponentEngine;
 
 export const createStockfishService = (
   skillLevel: SkillLevel = 'learning'

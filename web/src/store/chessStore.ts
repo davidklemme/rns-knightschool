@@ -10,7 +10,7 @@ import { detectTactics } from '@/lib/chess/tactics';
 import { getPieceStatuses, findAbandonmentWarnings } from '@/lib/chess/move-safety';
 import { getTeachingHint, type TeachingHint } from '@/lib/chess/hints';
 import { calculateHighlights } from '@/lib/colors/chess-highlights';
-import { getStockfishService } from '@/lib/chess/stockfish-service';
+import { getOpponentEngine } from '@/lib/chess/opponent-engine';
 import type {
   Square,
   Color,
@@ -129,8 +129,8 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     const config = skillConfigs[skill];
     const { playerName } = get();
 
-    // Sync Stockfish skill level
-    getStockfishService()
+    // Sync opponent engine skill level
+    getOpponentEngine()
       .setSkillLevel(skill)
       .catch((error) => console.error('Failed to set AI skill level:', error));
 
@@ -303,10 +303,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       return;
     }
 
-    // Get move from Stockfish
-    const stockfishService = getStockfishService();
+    // Get move from the opponent engine
+    const opponentEngine = getOpponentEngine();
     const currentFen = engine.fen;
-    const uciMove = await stockfishService.getBestMove(currentFen);
+    const uciMove = await opponentEngine.getBestMove(currentFen);
 
     // Parse UCI move format
     const parsedMove = uciMove ? parseUciMove(uciMove) : null;
@@ -539,7 +539,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     const config = skillConfigs[skill];
 
     // Sync the engine - without this the AI keeps playing at the old level
-    getStockfishService()
+    getOpponentEngine()
       .setSkillLevel(skill)
       .catch((error) => console.error('Failed to update AI skill level:', error));
 
@@ -562,8 +562,8 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       return;
     }
 
-    const stockfishService = getStockfishService();
-    const evalInfo = await stockfishService.getEvaluation(engine.fen, 15);
+    const opponentEngine = getOpponentEngine();
+    const evalInfo = await opponentEngine.getEvaluation(engine.fen, 15);
 
     if (evalInfo) {
       set({

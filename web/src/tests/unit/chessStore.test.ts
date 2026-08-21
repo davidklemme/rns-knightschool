@@ -1,35 +1,38 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { setOpponentEngine, type OpponentEngine } from '@/lib/chess/opponent-engine';
+import type { SkillLevel } from '@/lib/chess/types';
+import { useChessStore } from '@/store/chessStore';
 
 /**
  * User-centric store tests: what the player experiences when they start a
  * game, change the difficulty, or press the hint button.
+ *
+ * The store depends on the OpponentEngine interface, so we can inject a
+ * fake engine instead of spinning up a Stockfish worker.
  */
 
-// Track what the store tells the AI engine, without spinning up a worker
-const engineCalls = vi.hoisted(() => ({
-  skillLevels: [] as string[],
-}));
+const engineCalls = { skillLevels: [] as SkillLevel[] };
 
-vi.mock('@/lib/chess/stockfish-service', () => ({
-  getStockfishService: () => ({
-    init: async () => {},
-    setSkillLevel: async (level: string) => {
-      engineCalls.skillLevels.push(level);
-    },
-    getBestMove: async () => null,
-    getEvaluation: async () => null,
-    terminate: () => {},
-    isReady: () => false,
-  }),
-  resetStockfishService: () => {},
-}));
-
-import { useChessStore } from '@/store/chessStore';
+const fakeEngine: OpponentEngine = {
+  init: async () => {},
+  setSkillLevel: async (level) => {
+    engineCalls.skillLevels.push(level);
+  },
+  getBestMove: async () => null,
+  getEvaluation: async () => null,
+  terminate: () => {},
+  isReady: () => false,
+};
 
 describe('Chess store', () => {
   beforeEach(() => {
+    setOpponentEngine(fakeEngine);
     engineCalls.skillLevels.length = 0;
     useChessStore.getState().startNewGame('w', 'learning');
+  });
+
+  afterAll(() => {
+    setOpponentEngine(null);
   });
 
   it('configures the AI opponent for the level chosen at game start', () => {
