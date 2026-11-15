@@ -1,3 +1,4 @@
+import { exchangeGain, legalCapturers, positionForTurn } from './exchange';
 import type { ChessEngine } from './engine';
 import type { Square, Color, ThreatInfo } from './types';
 
@@ -51,10 +52,10 @@ export const analyzePieceThreat = (
   if (!piece || piece.color !== color) return null;
 
   const enemyColor = getEnemyColor(color);
-  const attackers = engine.getAttackers(square, enemyColor);
+  const attackers = piece.type === 'k' ? engine.getAttackers(square, enemyColor) : legalCapturers(engine, square, enemyColor);
   const defenders = engine.getDefenders(square, color);
   const isThreatened = attackers.length > 0;
-  const isHanging = isThreatened && defenders.length === 0;
+  const isHanging = piece.type !== 'k' && isThreatened && exchangeGain(positionForTurn(engine, enemyColor), square) > 0;
 
   return {
     square,
@@ -122,10 +123,10 @@ export const analyzeDanger = (engine: ChessEngine, color: Color): DangerAnalysis
 
   return {
     threatenedPieces,
-    hangingPieces: threatenedPieces.filter((t) => t.isHanging),
+    hangingPieces: threatenedPieces.filter((t) => t.isHanging).sort(sortByPieceValue),
     isInCheck,
     checkingPieces: isInCheck ? getCheckingPieces(engine, color) : [],
-    mostValuableThreat: findMostValuableThreat(engine, color),
+    mostValuableThreat: [...threatenedPieces].sort(sortByPieceValue)[0] ?? null,
   };
 };
 
@@ -141,8 +142,8 @@ const DANGER_MESSAGE_RULES: DangerMessageRule[] = [
     condition: (a) => a.isInCheck,
     message: (_, name) =>
       name === 'You'
-        ? "You're in check! Move your king to safety!"
-        : `${name}, you're in check! Move your king to safety!`,
+        ? "You're in check! Answer the check: move, capture the attacker, or block when possible!"
+        : `${name}, you're in check! Answer the check: move, capture the attacker, or block when possible!`,
   },
   {
     condition: (a) => a.hangingPieces.length > 0,

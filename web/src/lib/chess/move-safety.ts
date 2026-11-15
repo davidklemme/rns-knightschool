@@ -4,9 +4,11 @@ import type {
   Color,
   MoveSafetyInfo,
   PieceStatusMap,
+  PieceType,
   AbandonmentWarning,
 } from './types';
 import { PIECE_VALUES } from './types';
+import { exchangeGain, legalCapturers, positionForTurn } from './exchange';
 
 /**
  * Move Safety Analysis Module for RnS KnightSchool
@@ -30,13 +32,14 @@ export const analyzeMoveSafety = (
   engine: ChessEngine,
   from: Square,
   to: Square,
-  playerColor: Color
+  playerColor: Color,
+  promotion?: PieceType
 ): MoveSafetyInfo => {
   const enemyColor = getEnemyColor(playerColor);
 
   // Clone engine and make the move
   const testEngine = engine.clone();
-  const move = testEngine.move(from, to);
+  const move = testEngine.move(from, to, promotion);
 
   if (!move) {
     // Invalid move - return default unsafe info
@@ -47,38 +50,21 @@ export const analyzeMoveSafety = (
       isRisky: true,
       wouldBeDefended: false,
       leavesHanging: [],
-      materialRisk: 0,
+      materialRisk: Infinity,
     };
   }
 
   // Check if destination is attacked after move
-  const attackersAtDest = testEngine.getAttackers(to, enemyColor);
+  const attackersAtDest = legalCapturers(testEngine, to, enemyColor);
   const defendersAtDest = testEngine.getDefenders(to, playerColor);
   const isRisky = attackersAtDest.length > 0;
   const wouldBeDefended = defendersAtDest.length > 0;
 
   // Find pieces we leave hanging by this move
-  const leavesHanging = findPiecesLeftHanging(engine, testEngine, from, playerColor);
+  const leavesHanging = findPiecesLeftHanging(engine, testEngine, to, playerColor);
 
-  // Calculate material risk
-  const movedPiece = engine.get(from);
-  const pieceValue = movedPiece ? PIECE_VALUES[movedPiece.type] : 0;
-  let materialRisk = 0;
-
-  if (isRisky && !wouldBeDefended) {
-    materialRisk = pieceValue;
-  } else if (isRisky && wouldBeDefended) {
-    // Defended, but a cheaper attacker can still win material by trading
-    // (e.g. a pawn capturing a defended knight nets 2). One-ply estimate:
-    // our piece value minus the cheapest attacker's value.
-    const cheapestAttacker = Math.min(
-      ...attackersAtDest.map((sq) => {
-        const attacker = testEngine.get(sq);
-        return attacker ? PIECE_VALUES[attacker.type] : Infinity;
-      })
-    );
-    materialRisk = Math.max(0, pieceValue - cheapestAttacker);
-  }
+  // Legal recapture sequences exclude pinned defenders and handle x-rays.
+  let materialRisk = exchangeGain(testEngine, to);
 
   // Add value of pieces left hanging
   for (const sq of leavesHanging) {
@@ -105,7 +91,7 @@ export const analyzeMoveSafety = (
 const findPiecesLeftHanging = (
   beforeEngine: ChessEngine,
   afterEngine: ChessEngine,
-  movedFrom: Square,
+  movedTo: Square,
   playerColor: Color
 ): Square[] => {
   const enemyColor = getEnemyColor(playerColor);
@@ -118,19 +104,10 @@ const findPiecesLeftHanging = (
     // Skip kings - they can't be "hanging" in the traditional sense
     if (piece.type === 'k') continue;
 
-    // Check if this piece was defended by the piece that moved
-    const defendedBefore = beforeEngine.getDefenders(piece.square, playerColor);
-    const wasDefendedByMover = defendedBefore.includes(movedFrom);
-
-    if (wasDefendedByMover) {
-      // Check if it's now attacked and undefended
-      const attackersNow = afterEngine.getAttackers(piece.square, enemyColor);
-      const defendersNow = afterEngine.getDefenders(piece.square, playerColor);
-
-      if (attackersNow.length > 0 && defendersNow.length === 0) {
-        hanging.push(piece.square);
-      }
-    }
+    if (piece.square === movedTo) continue;
+    const beforeRisk = exchangeGain(positionForTurn(beforeEngine, enemyColor), piece.square);
+    const afterRisk = exchangeGain(positionForTurn(afterEngine, enemyColor), piece.square);
+    if (afterRisk > beforeRisk) hanging.push(piece.square);
   }
 
   return hanging;
@@ -148,8 +125,11 @@ export const analyzeAllMoves = (
   const legalMoves = engine.getLegalMoves(from);
 
   for (const move of legalMoves) {
-    const safety = analyzeMoveSafety(engine, from, move.to, playerColor);
-    result.set(move.to, safety);
+    const safety = analyzeMoveSafety(engine, from, move.to, playerColor, move.promotion);
+    const previous = result.get(move.to);
+    // One destination may offer four promotions; don't mark it safe only
+    // because the last underpromotion examined happened to be cheaper.
+    if (!previous || safety.materialRisk > previous.materialRisk) result.set(move.to, safety);
   }
 
   return result;
@@ -167,10 +147,10 @@ export const getPieceStatuses = (
   const pieces = engine.getPieces(color);
 
   for (const piece of pieces) {
-    const attackers = engine.getAttackers(piece.square, enemyColor);
+    const attackers = piece.type === 'k' ? engine.getAttackers(piece.square, enemyColor) : legalCapturers(engine, piece.square, enemyColor);
     const defenders = engine.getDefenders(piece.square, color);
     const isThreatened = attackers.length > 0;
-    const isHanging = isThreatened && defenders.length === 0;
+    const isHanging = isThreatened && exchangeGain(positionForTurn(engine, enemyColor), piece.square) > 0;
 
     let status: 'safe' | 'threatened' | 'hanging';
     if (isHanging) {
@@ -200,38 +180,17 @@ export const findAbandonmentWarnings = (
   from: Square,
   playerColor: Color
 ): AbandonmentWarning[] => {
-  const warnings: AbandonmentWarning[] = [];
-  const enemyColor = getEnemyColor(playerColor);
-  const movingPiece = engine.get(from);
-
-  if (!movingPiece) return warnings;
-
-  // Get all our pieces (excluding the one we're moving and king)
-  const ourPieces = engine.getPieces(playerColor).filter(
-    (p) => p.square !== from && p.type !== 'k'
-  );
-
-  // For each piece, check if we're currently defending it
-  for (const piece of ourPieces) {
-    const defenders = engine.getDefenders(piece.square, playerColor);
-
-    // Check if the piece being moved is one of the defenders
-    if (defenders.includes(from)) {
-      // Check if this would leave the piece hanging
-      const otherDefenders = defenders.filter((d) => d !== from);
-      const attackers = engine.getAttackers(piece.square, enemyColor);
-
-      // Would become hanging if attacked and no other defenders
-      if (attackers.length > 0 && otherDefenders.length === 0) {
-        warnings.push({
-          abandonedSquare: piece.square,
-          pieceType: piece.type,
-          defenderSquare: from,
-        });
-      }
+  const warned = new Map<Square, AbandonmentWarning>();
+  if (engine.turn !== playerColor) return [];
+  for (const move of engine.getLegalMoves(from)) {
+    const after = engine.clone();
+    after.move(from, move.to, move.promotion);
+    for (const square of findPiecesLeftHanging(engine, after, move.to, playerColor)) {
+      const piece = after.get(square)!;
+      warned.set(square, {abandonedSquare:square, pieceType:piece.type, defenderSquare:from});
     }
   }
-
+  const warnings = [...warned.values()];
   return warnings;
 };
 

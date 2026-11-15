@@ -55,6 +55,7 @@ export interface ChessGameState {
   highlights: HighlightMap;
   lastMove: ChessMove | null;
   isThinking: boolean;
+  aiError: boolean;
 
   // Teaching
   showLegalMoves: boolean;
@@ -92,6 +93,7 @@ export interface ChessGameState {
   useHint: () => void;
   undoMove: () => void;
   resetGame: () => void;
+  resignGame: () => void;
   setPlayerInfo: (name: string | null, mode: PlayerMode) => void;
   toggleLegalMoves: () => void;
   toggleDanger: () => void;
@@ -108,6 +110,7 @@ export interface ChessGameState {
 
 // Set to abort an in-flight game analysis (closing the review, new game)
 let analysisCancelled = false;
+let analysisGeneration = 0;
 
 // Full-strength search depth per position during game review. Deep enough
 // to catch club-level tactics, shallow enough to review a whole game in
@@ -127,6 +130,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   highlights: new Map(),
   lastMove: null,
   isThinking: false,
+  aiError: false,
   showLegalMoves: true,
   showDanger: true,
   currentTactic: null,
@@ -147,11 +151,12 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   // Start a new game
   startNewGame: (color: Color, skill: SkillLevel) => {
     const engine = createEngine();
-    const config = skillConfigs[skill];
-    const { playerName } = get();
+    const { playerName, playerMode } = get();
+    const helpers = playerConfigs[playerMode];
 
     // A review of the previous game is meaningless now
     analysisCancelled = true;
+    analysisGeneration++;
 
     // Sync opponent engine skill level
     getOpponentEngine()
@@ -170,8 +175,9 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       highlights: new Map(),
       lastMove: null,
       isThinking: false,
-      showLegalMoves: config.showLegalMoves,
-      showDanger: config.showDanger,
+      aiError: false,
+      showLegalMoves: helpers.showLegalMovesDefault,
+      showDanger: helpers.showDangerDefault,
       currentTactic: null,
       coachMessage: playerName
         ? `Let's play, ${playerName}! You're ${color === 'w' ? 'White' : 'Black'}.`
@@ -182,6 +188,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       pendingPromotion: null,
       evaluation: null,
       gameAnalysis: null,
+      isAnalyzing: false,
       analysisProgress: null,
       showReview: false,
     });
@@ -199,10 +206,11 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
   // Select a square
   selectSquare: (square: Square) => {
-    const { engine, selectedSquare, playerColor, isThinking, pendingPromotion } = get();
+    const { engine, selectedSquare, playerColor, isThinking, pendingPromotion, isGameOver, showReview } = get();
 
     // Don't allow selection during AI thinking or promotion dialog
-    if (isThinking || pendingPromotion) return;
+    if (isThinking || pendingPromotion || isGameOver || showReview ||
+      (get().currentTactic && get().currentTactic!.type !== 'check')) return;
 
     // If it's not the player's turn, don't allow selection
     if (engine.turn !== playerColor) return;
@@ -244,6 +252,9 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   makeMove: (from: Square, to: Square, promotion?: 'q' | 'r' | 'b' | 'n') => {
     const { engine, playerColor, moveHistory, historyIndex } = get();
 
+    if (get().isGameOver || get().isThinking || get().showReview || engine.turn !== playerColor ||
+      (get().currentTactic && get().currentTactic!.type !== 'check')) return;
+    const before = engine.clone();
     // Attempt the move
     const move = engine.move(from, to, promotion);
 
@@ -259,7 +270,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     newHistory.push(move);
 
     // Check for tactics
-    const tactic = detectTactics(engine, move);
+    const tactic = detectTactics(engine, move, before);
 
     // Check game end conditions
     const gameEnded = engine.isGameOver;
@@ -317,11 +328,14 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
   // Request AI move
   requestAIMove: async () => {
-    const { engine, playerColor, isGameOver } = get();
+    const { engine, playerColor, isGameOver, isThinking, currentTactic } = get();
 
-    if (isGameOver || engine.turn === playerColor) return;
+    // Let children read the celebration and inspect its board position first.
+    if (isGameOver || isThinking || engine.turn === playerColor ||
+      (currentTactic && currentTactic.type !== 'check')) return;
 
-    set({ isThinking: true, coachMessage: "Hmm, let me think..." });
+    // Thinking is already shown in the header; don't replace teaching feedback.
+    set({ isThinking: true, aiError: false });
 
     const legalMoves = engine.getAllLegalMoves();
 
@@ -333,7 +347,15 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     // Get move from the opponent engine
     const opponentEngine = getOpponentEngine();
     const currentFen = engine.fen;
-    const uciMove = await opponentEngine.getBestMove(currentFen);
+    let uciMove: string | null = null;
+    try {
+      uciMove = await opponentEngine.getBestMove(currentFen);
+    } catch (error) {
+      console.error('Computer move unavailable:', error);
+    }
+
+    // A reset or undo may have replaced this game while the engine searched.
+    if (get().engine !== engine || engine.fen !== currentFen || get().isGameOver) return;
 
     // Parse UCI move format
     const parsedMove = uciMove ? parseUciMove(uciMove) : null;
@@ -345,15 +367,9 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       move = engine.move(parsedMove.from, parsedMove.to, parsedMove.promotion);
     }
 
-    // Fallback: if Stockfish failed or returned invalid move, pick a random legal move
     if (!move) {
-      console.warn('Stockfish move failed, using fallback');
-      const fallbackMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-      move = engine.move(fallbackMove.from, fallbackMove.to, fallbackMove.promotion);
-    }
-
-    if (!move) {
-      set({ isThinking: false });
+      set({isThinking:false, aiError:true,
+        coachMessage:"The computer needs a moment. Tap Retry computer to keep playing."});
       return;
     }
 
@@ -377,12 +393,17 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       aiMessage = "It's a draw!";
     } else if (engine.isCheck) {
       aiMessage = "Check! Your king is in danger!";
+    } else {
+      aiMessage = getDangerMessage(
+        analyzeDanger(engine, playerColor), get().playerName || undefined
+      ) || aiMessage;
     }
 
     set({
       moveHistory: updatedHistory,
       historyIndex: updatedHistory.length - 1,
       lastMove: move,
+      currentTactic: null,
       isThinking: false,
       isGameOver: aiGameEnded,
       gameOutcome: aiOutcome,
@@ -442,6 +463,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
     set({
       historyIndex: newHistoryIndex,
+      moveHistory: moveHistory.slice(0, newHistoryIndex + 1),
       lastMove: newLastMove,
       selectedSquare: null,
       currentTactic: null,
@@ -449,9 +471,13 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       isGameOver: false,
       gameOutcome: null,
       activeHint: null,
+      aiError:false,
+      gameAnalysis:null,
     });
 
     get().updateHighlights();
+
+    get().updatePieceStatuses();
 
     // Update evaluation after undo if eval bar is visible
     if (get().showEval) {
@@ -462,7 +488,18 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   // Reset to start of game
   resetGame: () => {
     const { playerColor, skillLevel } = get();
+    const { showLegalMoves, showDanger } = get();
     get().startNewGame(playerColor, skillLevel);
+    set({ showLegalMoves, showDanger });
+  },
+
+  resignGame: () => {
+    analysisCancelled = true;
+    analysisGeneration++;
+    set({isGameOver:true, gameOutcome:'resignation', isThinking:false,
+      aiError:false, currentTactic:null, activeHint:null, pendingPromotion:null,
+      selectedSquare:null, showReview:false, coachMessage:'Game finished. You can try another game or undo and keep learning.'});
+    get().updateHighlights();
   },
 
   // Set player info
@@ -474,6 +511,7 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       playerMode: mode,
       showLegalMoves: playerConfig.showLegalMovesDefault,
       showDanger: playerConfig.showDangerDefault,
+      showEval:false,
     });
   },
 
@@ -487,11 +525,14 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
   toggleDanger: () => {
     set((state) => ({ showDanger: !state.showDanger }));
     get().updateHighlights();
+    get().updatePieceStatuses();
   },
 
   // Dismiss tactic celebration
   dismissTactic: () => {
     set({ currentTactic: null });
+    get().updateHighlights();
+    get().requestAIMove();
   },
 
   // Cancel promotion dialog
@@ -572,8 +613,6 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
 
     set({
       skillLevel: skill,
-      showLegalMoves: config.showLegalMoves,
-      showDanger: config.showDanger,
       coachMessage: `Difficulty changed to ${config.label}!`,
     });
     get().updateHighlights();
@@ -590,8 +629,10 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     }
 
     const opponentEngine = getOpponentEngine();
-    const evalInfo = await opponentEngine.getEvaluation(engine.fen, 15);
-
+    const fen = engine.fen;
+    let evalInfo;
+    try { evalInfo = await opponentEngine.getEvaluation(fen, 15); } catch { return; }
+    if (get().engine !== engine || engine.fen !== fen || !get().showEval || get().isGameOver) return;
     if (evalInfo) {
       set({
         evaluation: {
@@ -640,6 +681,8 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
     const analyzePosition = opponentEngine.analyzePosition;
 
     analysisCancelled = false;
+    const generation = ++analysisGeneration;
+    const cancelled = () => analysisCancelled || generation !== analysisGeneration || get().engine !== engine;
     set({
       isAnalyzing: true,
       showReview: true,
@@ -650,13 +693,14 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       const analysis = await analyzeGame(
         moves,
         (fen) => analyzePosition(fen, ANALYSIS_DEPTH),
-        (done, total) => set({ analysisProgress: { done, total } }),
-        () => analysisCancelled
+        (done, total) => { if (!cancelled()) set({ analysisProgress: { done, total } }); },
+        cancelled
       );
 
+      if (cancelled()) return;
       if (analysis) {
-        set({ gameAnalysis: analysis, showReview: !analysisCancelled });
-      } else if (!analysisCancelled) {
+        set({ gameAnalysis: analysis, showReview: true });
+      } else {
         set({
           showReview: false,
           coachMessage: "Couldn't analyze this game - try again.",
@@ -664,19 +708,21 @@ export const useChessStore = create<ChessGameState>((set, get) => ({
       }
     } catch (error) {
       console.error('Game analysis failed:', error);
+      if (cancelled()) return;
       set({
         showReview: false,
         coachMessage: "Couldn't analyze this game - try again.",
       });
     } finally {
-      set({ isAnalyzing: false, analysisProgress: null });
+      if (generation === analysisGeneration) set({ isAnalyzing: false, analysisProgress: null });
     }
   },
 
   // Close the review overlay (aborts an in-flight analysis)
   closeReview: () => {
     analysisCancelled = true;
-    set({ showReview: false });
+    analysisGeneration++;
+    set({ showReview: false, isAnalyzing:false, analysisProgress:null });
   },
 
   // Toggle evaluation bar visibility

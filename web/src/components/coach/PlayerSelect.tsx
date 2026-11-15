@@ -41,7 +41,7 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-amber-600 via-orange-600 to-yellow-600 flex items-center justify-center p-4 z-50">
+    <div className="min-h-dvh bg-gradient-to-br from-amber-600 via-orange-600 to-yellow-600 flex items-start sm:items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center pb-2">
           <div className="text-5xl mb-3" role="img" aria-label="Knight">
@@ -64,7 +64,7 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
                   <Button
                     key={player.name}
                     size="lg"
-                    className="text-lg px-8 py-6 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md"
+                    className="text-lg px-4 sm:px-8 py-6 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md"
                     onClick={() => onSelect(player.name, player.mode, selectedColor)}
                   >
                     <span className="mr-2">{player.emoji}</span>
@@ -110,6 +110,7 @@ export function PlayerSelect({ onSelect }: PlayerSelectProps) {
           ) : (
             <div className="space-y-4">
               <Input
+                aria-label="Your name"
                 placeholder="Enter your name"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}

@@ -25,7 +25,7 @@ export interface SkillConfig {
   moveTimeMs: number; // Think time for elo-limited levels (1320+)
   showLegalMoves: boolean;
   showDanger: boolean;
-  aiMistakeRate: number; // 0-1, chance AI makes a random move instead of best
+  aiMistakeRate: number; // 0-1, chance to offer a deliberate pawn/minor-piece opportunity
   label: string;
   description: string;
   stockfishSkillLevel: number; // 0-20 Stockfish skill level (only applied below 1320 elo)
@@ -38,7 +38,7 @@ export interface SkillConfig {
 // IGNORED whenever UCI_LimitStrength is on. So the two mechanisms must not
 // be combined:
 // - Below 1320: UCI_LimitStrength off, "Skill Level" 0-20 + shallow depth
-//   provide believably weak play, topped up with random "teaching mistakes".
+//   provide believably weak play, with occasional deliberate capture opportunities.
 // - 1320 and up: UCI_LimitStrength on with UCI_Elo, full skill, and a
 //   per-level think time so strength scales with the selected level.
 export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
@@ -128,7 +128,7 @@ export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
     showLegalMoves: false,
     showDanger: false,
     aiMistakeRate: 0.0,
-    label: 'Expert',
+    label: 'Very Strong',
     description: 'Tournament player level',
     stockfishSkillLevel: 20,
     useMultiThreaded: true,
@@ -141,8 +141,8 @@ export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
     showLegalMoves: false,
     showDanger: false,
     aiMistakeRate: 0.0,
-    label: 'Master',
-    description: 'Master level opponent',
+    label: 'Extra Strong',
+    description: 'A very challenging opponent',
     stockfishSkillLevel: 20,
     useMultiThreaded: true,
   },
@@ -154,7 +154,7 @@ export const SKILL_CONFIGS: Record<SkillLevel, SkillConfig> = {
     showLegalMoves: false,
     showDanger: false,
     aiMistakeRate: 0.0,
-    label: 'Grandmaster',
+    label: 'Maximum',
     description: 'Elite level challenge',
     stockfishSkillLevel: 20,
     useMultiThreaded: true,

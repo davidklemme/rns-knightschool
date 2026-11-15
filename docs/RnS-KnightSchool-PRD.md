@@ -1,5 +1,7 @@
 # RnS KnightSchool - Product Requirements Document
 
+> Original product brief. For implemented behavior and current validation, see [the project README](../README.md) and [review/remediation notes](CHESS-APP-REVIEW.md).
+
 > **Ruben and Sammy's Knight School** - A visual-learning Chess app for kids 5+
 
 ## 1. Product Vision

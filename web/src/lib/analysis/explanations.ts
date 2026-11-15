@@ -2,6 +2,7 @@ import { createEngine } from '@/lib/chess/engine';
 import type { ChessEngine } from '@/lib/chess/engine';
 import { detectTactics } from '@/lib/chess/tactics';
 import { analyzeMoveSafety } from '@/lib/chess/move-safety';
+import { exchangeGain, legalCapturers, positionForTurn } from '@/lib/chess/exchange';
 import type { PositionAnalysis } from '@/lib/chess/opponent-engine';
 import type { ChessMove, Color, Square, PieceType, TacticResult } from '@/lib/chess/types';
 import type { MoveClassification } from './game-analysis';
@@ -75,8 +76,9 @@ const TACTIC_DESCRIBERS: Partial<Record<TacticResult['type'], TacticDescriber>> 
   fork: (names, possessive) =>
     names.length >= 2 ? `forks ${possessive} ${listNames(names)}` : null,
   pin: (names, possessive) =>
-    names.length >= 1 ? `pins ${possessive} ${names[0]} to the king` : null,
-  skewer: (_, possessive) => `skewers ${possessive} king`,
+    names.length >= 1 ? `pins ${possessive} ${names[0]} to the ${names[1]}` : null,
+  skewer: (names, possessive) => `skewers ${possessive} ${names[0]}`,
+  discovered_attack: () => 'uncovers an attack by another piece',
   checkmate: () => 'is checkmate',
 };
 
@@ -125,9 +127,7 @@ const hungPieceRule: ExplanationRule = (ctx) => {
   if (!piece || piece.type === 'k') return null;
 
   const enemy: Color = ctx.mover === 'w' ? 'b' : 'w';
-  const attacked = after.getAttackers(ctx.move.to, enemy).length > 0;
-  const defended = after.getDefenders(ctx.move.to, ctx.mover).length > 0;
-  if (!attacked || defended) return null;
+  if (exchangeGain(positionForTurn(after, enemy), ctx.move.to) <= 0) return null;
 
   // Name the capture only if the engine's reply really takes the piece
   const refutationTakes = ctx.refutationUci?.slice(2, 4) === ctx.move.to;
@@ -142,14 +142,14 @@ const hungPieceRule: ExplanationRule = (ctx) => {
 
 const abandonedPieceRule: ExplanationRule = (ctx) => {
   const before = createEngine(ctx.fenBefore);
-  const safety = analyzeMoveSafety(before, ctx.move.from, ctx.move.to, ctx.mover);
+  const safety = analyzeMoveSafety(before, ctx.move.from, ctx.move.to, ctx.mover, ctx.move.promotion);
   const abandonedSq = safety.leavesHanging[0];
   if (!abandonedSq) return null;
 
   const after = createEngine(ctx.fenAfter);
   const abandoned = after.get(abandonedSq);
   if (!abandoned) return null;
-  return `Moving away leaves your ${pieceName(abandoned.type)} on ${abandonedSq} undefended.`;
+  return `Moving away puts your ${pieceName(abandoned.type)} on ${abandonedSq} at greater risk in the exchange.`;
 };
 
 const refutationTacticRule: ExplanationRule = (ctx) => {
@@ -157,7 +157,7 @@ const refutationTacticRule: ExplanationRule = (ctx) => {
   const applied = applyUci(ctx.fenAfter, ctx.refutationUci);
   if (!applied) return null;
 
-  const tactic = detectTactics(applied.engine, applied.move);
+  const tactic = detectTactics(applied.engine, applied.move, createEngine(ctx.fenAfter));
   if (!tactic) return null;
   const description = describeTactic(tactic, applied.engine, 'your');
   if (!description) return null;
@@ -169,7 +169,7 @@ const missedTacticRule: ExplanationRule = (ctx) => {
   const applied = applyUci(ctx.fenBefore, ctx.bestMoveUci);
   if (!applied) return null;
 
-  const tactic = detectTactics(applied.engine, applied.move);
+  const tactic = detectTactics(applied.engine, applied.move, createEngine(ctx.fenBefore));
   if (tactic) {
     const description = describeTactic(tactic, applied.engine, 'their');
     if (description) {
@@ -186,7 +186,7 @@ const missedTacticRule: ExplanationRule = (ctx) => {
   if (
     target &&
     target.color !== ctx.mover &&
-    before.getDefenders(targetSq, target.color).length === 0
+    legalCapturers(applied.engine, targetSq, target.color).length === 0
   ) {
     return `Better was ${ctx.bestMoveSan}, winning the ${pieceName(target.type)} on ${targetSq} for free.`;
   }

@@ -29,20 +29,20 @@ const PIECE_VALUES: Record<string, number> = {
 const TACTIC_MESSAGES: Record<TacticType, string[]> = {
   fork: [
     "Wow! You got them with a FORK! Two pieces, one attack!",
-    "Amazing FORK! They can't save both pieces!",
+    "Amazing FORK! Look at both targets!",
     "FORK! Your piece is attacking two things at once!",
     "Double attack! That's called a FORK!",
   ],
   pin: [
-    "Nice PIN! That piece is stuck!",
-    "You've got them PINNED! They can't move without losing something big!",
-    "Perfect PIN! That piece is frozen!",
-    "Sneaky PIN! They're stuck!",
+    "Nice PIN! Moving that piece could expose the one behind!",
+    "You've got a PIN! Look at the two pieces in that line.",
+    "PIN! A more valuable piece is behind that target.",
+    "Sneaky PIN! Those pieces are connected by your attack.",
   ],
   skewer: [
     "SKEWER! You're poking right through!",
     "That's a SKEWER! Attack in a line!",
-    "Great SKEWER! They have to move and lose the piece behind!",
+    "Great SKEWER! Look for the target behind the valuable piece!",
   ],
   discovered_attack: [
     "DISCOVERED ATTACK! Surprise!",
@@ -50,7 +50,7 @@ const TACTIC_MESSAGES: Record<TacticType, string[]> = {
     "Your piece moved and revealed danger behind it!",
   ],
   check: [
-    "Check! The king must move!",
+    "Check! They must answer the attack on their king!",
     "You've got their king in CHECK!",
     "Check! Watch out for that king!",
   ],
@@ -124,83 +124,68 @@ export function detectFork(engine: ChessEngine, move: ChessMove): TacticResult |
   return null;
 }
 
-/**
- * Detect if a move creates a pin
- */
+/** First two occupied squares along each ray, stopping at every blocker. */
+function rayTargets(engine: ChessEngine, from: Square): Square[][] {
+  const piece = engine.get(from);
+  if (!piece || !['b', 'r', 'q'].includes(piece.type)) return [];
+  const directions: [number, number][] = [];
+  if (piece.type !== 'b') directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+  if (piece.type !== 'r') directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+  const [x, y] = squareToCoords(from);
+  return directions.map(([dx, dy]) => {
+    const targets: Square[] = [];
+    for (let i = 1; i < 8; i++) {
+      const square = coordsToSquare(x + dx * i, y + dy * i);
+      if (!square) break;
+      if (engine.get(square)) {
+        if (engine.get(square)!.color === piece.color) break;
+        targets.push(square);
+        if (targets.length === 2) break;
+      }
+    }
+    return targets;
+  }).filter(targets => targets.length === 2);
+}
+
 export function detectPin(engine: ChessEngine, move: ChessMove): TacticResult | null {
-  const piece = engine.get(move.to);
-  if (!piece) return null;
-
-  // Pins are typically created by bishops, rooks, and queens
-  if (!['b', 'r', 'q'].includes(piece.type)) return null;
-
-  const enemyColor = piece.color === 'w' ? 'b' : 'w';
-  const enemyKingSquare = engine.getKingSquare(enemyColor);
-  if (!enemyKingSquare) return null;
-
-  // Check if we're attacking along a line that includes the king
-  const attackedSquares = getAttackedEnemySquares(engine, move.to, piece.color);
-
-  for (const attackedSquare of attackedSquares) {
-    const target = engine.get(attackedSquare);
-    if (!target) continue;
-
-    // Check if this piece is between our piece and the enemy king
-    const isOnLine = isSquareOnLine(move.to, attackedSquare, enemyKingSquare);
-    if (isOnLine && PIECE_VALUES[target.type] < PIECE_VALUES['k']) {
-      return {
-        type: 'pin',
-        move,
-        targets: [attackedSquare, enemyKingSquare],
-        message: getRandomMessage('pin'),
-        celebrationEmoji: TACTIC_EMOJIS.pin,
-      };
+  for (const [front, back] of rayTargets(engine, move.to)) {
+    const a = engine.get(front)!;
+    const b = engine.get(back)!;
+    if (PIECE_VALUES[b.type] > PIECE_VALUES[a.type]) {
+      return {type:'pin', move, targets:[front, back],
+        message:getRandomMessage('pin'), celebrationEmoji:TACTIC_EMOJIS.pin};
     }
   }
-
   return null;
 }
 
-/**
- * Detect if a move creates a skewer
- */
 export function detectSkewer(engine: ChessEngine, move: ChessMove): TacticResult | null {
-  const piece = engine.get(move.to);
-  if (!piece) return null;
-
-  // Skewers are typically created by bishops, rooks, and queens
-  if (!['b', 'r', 'q'].includes(piece.type)) return null;
-
-  const enemyColor = piece.color === 'w' ? 'b' : 'w';
-  const enemyKingSquare = engine.getKingSquare(enemyColor);
-
-  // Check if we're attacking the king and there's a valuable piece behind
-  if (enemyKingSquare) {
-    const isAttackingKing = engine
-      .getAttackers(enemyKingSquare, piece.color)
-      .includes(move.to);
-
-    if (isAttackingKing) {
-      // Look for pieces behind the king along the attack line
-      const direction = getDirection(move.to, enemyKingSquare);
-      if (direction) {
-        const behindKing = getSquareBehind(enemyKingSquare, direction);
-        if (behindKing) {
-          const pieceBehind = engine.get(behindKing);
-          if (pieceBehind && pieceBehind.color === enemyColor && PIECE_VALUES[pieceBehind.type] >= 3) {
-            return {
-              type: 'skewer',
-              move,
-              targets: [enemyKingSquare, behindKing],
-              message: getRandomMessage('skewer'),
-              celebrationEmoji: TACTIC_EMOJIS.skewer,
-            };
-          }
-        }
-      }
+  for (const [front, back] of rayTargets(engine, move.to)) {
+    const a = engine.get(front)!;
+    const b = engine.get(back)!;
+    if (PIECE_VALUES[a.type] > PIECE_VALUES[b.type] && PIECE_VALUES[b.type] >= 3) {
+      return {type:'skewer', move, targets:[front, back],
+        message:getRandomMessage('skewer'), celebrationEmoji:TACTIC_EMOJIS.skewer};
     }
   }
+  return null;
+}
 
+export function detectDiscoveredAttack(
+  engine: ChessEngine, move: ChessMove, before?: ChessEngine
+): TacticResult | null {
+  const mover = engine.get(move.to);
+  if (!before || !mover) return null;
+  for (const piece of engine.getPieces(mover.color)) {
+    if (piece.square === move.to || !['b', 'r', 'q'].includes(piece.type) ||
+      before.get(piece.square)?.type !== piece.type || before.get(piece.square)?.color !== mover.color) continue;
+    const targets = getAttackedEnemySquares(engine, piece.square, mover.color)
+      .filter(square => PIECE_VALUES[engine.get(square)!.type] >= 3 &&
+        !before.getAttackers(square, mover.color).includes(piece.square));
+    if (targets.length) return {type:'discovered_attack', move,
+      targets:[piece.square, ...targets], message:getRandomMessage('discovered_attack'),
+      celebrationEmoji:TACTIC_EMOJIS.discovered_attack};
+  }
   return null;
 }
 
@@ -238,7 +223,7 @@ export function detectCheck(engine: ChessEngine, move: ChessMove): TacticResult 
 /**
  * Detect all tactics for a move (returns the most impressive one)
  */
-export function detectTactics(engine: ChessEngine, move: ChessMove): TacticResult | null {
+export function detectTactics(engine: ChessEngine, move: ChessMove, before?: ChessEngine): TacticResult | null {
   // Priority: Checkmate > Fork > Pin > Skewer > Check
   const checkResult = detectCheck(engine, move);
   if (checkResult?.type === 'checkmate') return checkResult;
@@ -252,35 +237,15 @@ export function detectTactics(engine: ChessEngine, move: ChessMove): TacticResul
   const skewerResult = detectSkewer(engine, move);
   if (skewerResult) return skewerResult;
 
+  const discovered = detectDiscoveredAttack(engine, move, before);
+  if (discovered) return discovered;
+
   if (checkResult) return checkResult;
 
   return null;
 }
 
 // --- Helper functions ---
-
-function isSquareOnLine(from: Square, through: Square, to: Square): boolean {
-  const [fx, fy] = squareToCoords(from);
-  const [tx, ty] = squareToCoords(through);
-  const [ex, ey] = squareToCoords(to);
-
-  // Check if all three are on the same line (horizontal, vertical, or diagonal)
-  const dx1 = tx - fx;
-  const dy1 = ty - fy;
-  const dx2 = ex - fx;
-  const dy2 = ey - fy;
-
-  // Cross product should be 0 for collinear points
-  if (dx1 * dy2 !== dy1 * dx2) return false;
-
-  // Check that 'through' is between 'from' and 'to'
-  return (
-    Math.min(fx, ex) <= tx &&
-    tx <= Math.max(fx, ex) &&
-    Math.min(fy, ey) <= ty &&
-    ty <= Math.max(fy, ey)
-  );
-}
 
 function squareToCoords(square: Square): [number, number] {
   const file = square.charCodeAt(0) - 97; // a=0, h=7
@@ -295,36 +260,15 @@ function coordsToSquare(x: number, y: number): Square | null {
   return `${file}${rank}` as Square;
 }
 
-function getDirection(from: Square, to: Square): [number, number] | null {
-  const [fx, fy] = squareToCoords(from);
-  const [tx, ty] = squareToCoords(to);
-
-  const dx = tx - fx;
-  const dy = ty - fy;
-
-  if (dx === 0 && dy === 0) return null;
-
-  // Normalize to unit direction
-  const len = Math.max(Math.abs(dx), Math.abs(dy));
-  return [dx / len, dy / len];
-}
-
-function getSquareBehind(square: Square, direction: [number, number]): Square | null {
-  const [x, y] = squareToCoords(square);
-  const newX = x + direction[0];
-  const newY = y + direction[1];
-  return coordsToSquare(newX, newY);
-}
-
 /**
  * Tactic explanations for kids (using object lookup instead of switch)
  */
 const TACTIC_EXPLANATIONS: Record<TacticType, string> = {
-  fork: 'A FORK is when one piece attacks two enemy pieces at the same time. They can only save one!',
-  pin: "A PIN is when a piece can't move because it would expose a more valuable piece behind it.",
-  skewer: 'A SKEWER is like a reverse pin - you attack a valuable piece, and when it moves, you capture what was behind it!',
+  fork: 'A FORK is when one piece attacks two enemy pieces at the same time. Look at how your opponent might answer both threats.',
+  pin: "A PIN attacks a piece with a more valuable piece behind it. Moving could expose that piece. A piece pinned to its king must keep the king safe.",
+  skewer: 'A SKEWER is like a reverse pin - you attack a valuable piece, and when it moves, you may be able to capture what was behind it!',
   discovered_attack: 'A DISCOVERED ATTACK is when you move one piece and reveal an attack from another piece behind it. Surprise!',
-  check: "CHECK means the king is being attacked! It must get to safety or block the attack.",
+  check: "CHECK means the king is being attacked! Answer by moving the king, capturing the attacker, or blocking the attack when possible.",
   checkmate: "CHECKMATE means the king is trapped and can't escape. Game over - you win!",
 };
 

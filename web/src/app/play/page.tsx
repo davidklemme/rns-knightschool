@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useChessStore } from '@/store/chessStore';
 import { GameShell } from '@/components/layout/GameShell';
 import { Header } from '@/components/layout/Header';
@@ -37,8 +38,12 @@ export default function PlayPage() {
     moveHistory,
     historyIndex,
     highlights,
+    pieceStatuses,
     lastMove,
     isThinking,
+    aiError,
+    requestAIMove,
+    resignGame,
     showLegalMoves,
     showDanger,
     currentTactic,
@@ -92,12 +97,6 @@ export default function PlayPage() {
     }
   }, [isGameOver, resetGame]);
 
-  // Handle resign
-  const handleResign = useCallback(() => {
-    // For kids, we'll just start a new game instead of formal resignation
-    setShowPlayerSelect(true);
-  }, []);
-
   // Handle promotion selection
   const handlePromotion = useCallback(
     (piece: 'q' | 'r' | 'b' | 'n') => {
@@ -110,11 +109,7 @@ export default function PlayPage() {
 
   // Determine if in compact/simple mode
   const isSimpleMode = playerMode === 'ruby';
-  const isCompact =
-    typeof window !== 'undefined' &&
-    (window.innerWidth < 640 ||
-      (window.matchMedia('(orientation: landscape)').matches &&
-        window.innerHeight < 500));
+  const isCompact = useMediaQuery('(max-width: 639px), (orientation: landscape) and (max-height: 499px)');
 
   // Player select modal
   if (showPlayerSelect) {
@@ -135,18 +130,20 @@ export default function PlayPage() {
           />
         }
         board={
-          <div className="flex gap-1 h-full w-full items-center justify-center">
+          <div className="flex gap-1 w-full items-stretch">
             {showEval && (
               <EvalBar
                 score={evaluation?.score ?? 0}
                 mate={evaluation?.mate ?? null}
                 isFlipped={playerColor === 'b'}
-                className="h-full max-h-[45vh] landscape:max-h-full lg:max-h-[min(100%,500px)]"
+                className="h-auto self-stretch shrink-0"
               />
             )}
             <Board
+              className="flex-1 min-w-[360px]"
               board={engine.board()}
               highlights={highlights}
+              pieceStatuses={pieceStatuses}
               lastMove={lastMove}
               onSquareClick={selectSquare}
               isFlipped={playerColor === 'b'}
@@ -161,7 +158,9 @@ export default function PlayPage() {
               message={coachMessage}
               isCompact={isCompact}
               isSimpleMode={isSimpleMode}
+              isThinking={isThinking}
             />
+            <TacticCelebration tactic={currentTactic} onDismiss={dismissTactic} playerName={playerName || undefined} />
             {moveHistory.length > 0 && (
               <CapturedPieces
                 moveHistory={moveHistory}
@@ -175,7 +174,9 @@ export default function PlayPage() {
           <ActionBar
             onUndo={undoMove}
             onHint={useHint}
-            onResign={handleResign}
+            onResign={resignGame}
+            aiError={aiError}
+            onRetry={requestAIMove}
             onNewGame={handleNewGame}
             onToggleLegalMoves={toggleLegalMoves}
             onToggleDanger={toggleDanger}
@@ -193,13 +194,6 @@ export default function PlayPage() {
             isCompact={isCompact}
           />
         }
-      />
-
-      {/* Tactic celebration modal */}
-      <TacticCelebration
-        tactic={currentTactic}
-        onDismiss={dismissTactic}
-        playerName={playerName || undefined}
       />
 
       {/* Promotion modal */}

@@ -3,7 +3,8 @@ import type { Square, Color, ChessMove, PieceType } from './types';
 import { PIECE_VALUES } from './types';
 import { analyzeMoveSafety } from './move-safety';
 import { getPieceStatuses } from './move-safety';
-import { detectFork, detectPin, detectSkewer } from './tactics';
+import { exchangeGain, legalCapturers, positionForTurn } from './exchange';
+import { detectFork, detectPin, detectSkewer, detectDiscoveredAttack } from './tactics';
 
 /**
  * Teaching hints for RnS KnightSchool
@@ -18,11 +19,10 @@ import { detectFork, detectPin, detectSkewer } from './tactics';
  * 2. rescue        - a valuable piece is hanging: save it first!
  * 3. fork/pin/skewer - create a tactic (the "higher level" concepts)
  * 4. freePiece/goodTrade - win material with a SAFE capture
- * 5. check         - safe check to pressure the king
- * 6. develop       - a safe move that doesn't hang anything
+ * 5. check         - check without a losing local exchange
+ * 6. develop       - a reasonable move, acknowledging unavoidable risk
  *
- * Every suggested move is safety-checked so the hint never teaches the
- * child to drop a piece.
+ * Safety uses local legal exchanges; messages avoid guarantees about deeper tactics.
  */
 
 export type HintConcept =
@@ -32,6 +32,8 @@ export type HintConcept =
   | 'skewer'
   | 'freePiece'
   | 'goodTrade'
+  | 'equalTrade'
+  | 'discovered_attack'
   | 'rescue'
   | 'check'
   | 'develop';
@@ -39,6 +41,7 @@ export type HintConcept =
 export interface TeachingHint {
   from: Square;
   to: Square;
+  promotion?: PieceType;
   concept: HintConcept;
   /** Second-level impact: squares this move affects (tactic targets, the
    *  piece being rescued, the piece being captured, the enemy king...) */
@@ -61,7 +64,7 @@ const enemyOf = (color: Color): Color => (color === 'w' ? 'b' : 'w');
 
 interface MoveCandidate {
   move: ChessMove;
-  /** Net material the move risks (0 = safe) */
+  /** Estimated material risk from local exchanges (0 does not prove tactical safety) */
   risk: number;
   leavesHanging: Square[];
 }
@@ -70,7 +73,7 @@ interface MoveCandidate {
  * Find the best teaching hint for the player.
  * Returns null only when there are no legal moves.
  */
-export function getTeachingHint(
+function getTeachingHintBase(
   engine: ChessEngine,
   playerColor: Color
 ): TeachingHint | null {
@@ -81,7 +84,7 @@ export function getTeachingHint(
 
   // Precompute safety for every legal move
   const candidates: MoveCandidate[] = legalMoves.map((move) => {
-    const safety = analyzeMoveSafety(engine, move.from, move.to, playerColor);
+    const safety = analyzeMoveSafety(engine, move.from, move.to, playerColor, move.promotion);
     return {
       move,
       risk: safety.materialRisk,
@@ -118,7 +121,7 @@ export function getTeachingHint(
   const check = findSafeCheck(engine, candidates);
   if (check) return check;
 
-  // 6. Fall back to a safe developing move
+  // 6. Prefer development, or acknowledge the least-risk forced move.
   return findDevelopingMove(engine, playerColor, candidates);
 }
 
@@ -135,6 +138,7 @@ const findCheckmate = (
       const kingSquare = test.getKingSquare(test.turn);
       return {
         from: move.from,
+        promotion: move.promotion,
         to: move.to,
         concept: 'checkmate',
         impactSquares: kingSquare ? [kingSquare] : [],
@@ -185,24 +189,23 @@ const findRescue = (
     const piece = test.get(pieceSquare);
     if (!piece || piece.color !== playerColor || piece.type !== hanging.type) continue;
 
-    const attackers = test.getAttackers(pieceSquare, enemyColor);
-    const defenders = test.getDefenders(pieceSquare, playerColor);
-    const stillHanging = attackers.length > 0 && defenders.length === 0;
+    const stillHanging = exchangeGain(positionForTurn(test, enemyColor), pieceSquare) > 0;
     if (stillHanging) continue;
 
     const name = pieceName(hanging.type);
     let message: string;
 
     if (move.from === hanging.square) {
-      message = `Watch out - your ${name} is in danger! You can move it somewhere safe.`;
+      message = `Watch out - your ${name} is in danger! Try this escape and check what your opponent can do next.`;
     } else if (move.captured && move.to !== hanging.square) {
-      message = `Your ${name} is in danger! Your ${pieceName(move.piece)} can capture the attacker!`;
+      message = `Your ${name} is in danger! Your ${pieceName(move.piece)} can help by capturing an enemy piece.`;
     } else {
-      message = `Your ${name} is in danger! Your ${pieceName(move.piece)} can protect it - pieces that defend each other are strong.`;
+      message = `Your ${name} is in danger! Your ${pieceName(move.piece)} can help protect it. Look at how these pieces work together.`;
     }
 
     return {
       from: move.from,
+      promotion: move.promotion,
       to: move.to,
       concept: 'rescue',
       impactSquares: [hanging.square],
@@ -229,7 +232,7 @@ const findTacticMove = (
     if (!made) continue;
 
     const tactic =
-      detectFork(test, made) ?? detectPin(test, made) ?? detectSkewer(test, made);
+      detectFork(test, made) ?? detectPin(test, made) ?? detectSkewer(test, made) ?? detectDiscoveredAttack(test, made, engine);
     if (!tactic) continue;
 
     // Prefer the tactic hitting the most valuable targets
@@ -240,13 +243,15 @@ const findTacticMove = (
 
     const name = pieceName(move.piece);
     const messages: Partial<Record<string, string>> = {
-      fork: `Sneaky idea: your ${name} can attack TWO enemy pieces at once - that's a FORK! They can only save one.`,
-      pin: `Your ${name} can PIN an enemy piece - it won't be able to move without losing something bigger behind it!`,
-      skewer: `Your ${name} can SKEWER them - attack through one piece to win the one hiding behind it!`,
+      fork: `Sneaky idea: your ${name} can attack TWO enemy pieces at once - that's a FORK! Look for how they might respond.`,
+      pin: `Your ${name} can PIN an enemy piece - moving it could expose the more valuable piece behind it.`,
+      discovered_attack: 'Move one piece to uncover an attack by another — a DISCOVERED ATTACK!',
+      skewer: `Your ${name} can SKEWER them - look at the valuable piece in front and the target behind it.`,
     };
 
     const hint: TeachingHint = {
       from: move.from,
+      promotion: move.promotion,
       to: move.to,
       concept: tactic.type as HintConcept,
       impactSquares: tactic.targets,
@@ -270,19 +275,24 @@ const findWinningCapture = (
   for (const { move, risk, leavesHanging } of candidates) {
     if (!move.captured || leavesHanging.length > 0) continue;
 
-    const gain = PIECE_VALUES[move.captured] - risk;
-    if (gain <= 0) continue;
+    const gain = PIECE_VALUES[move.captured] + (move.promotion ? PIECE_VALUES[move.promotion] - 1 : 0) - risk;
+    if (gain < 0) continue;
 
     const capturedName = pieceName(move.captured);
-    const isFree = risk === 0;
+    const after = engine.clone();
+    after.move(move.from, move.to, move.promotion);
+    const isFree = legalCapturers(after, move.to, after.turn).length === 0;
     const hint: TeachingHint = {
       from: move.from,
+      promotion: move.promotion,
       to: move.to,
-      concept: isFree ? 'freePiece' : 'goodTrade',
+      concept: isFree ? 'freePiece' : gain > 0 ? 'goodTrade' : 'equalTrade',
       impactSquares: [move.to],
       message: isFree
-        ? `Free piece alert! Their ${capturedName} has nobody protecting it - your ${pieceName(move.piece)} can grab it safely.`
-        : `Good trade! Your ${pieceName(move.piece)} can capture their ${capturedName} - you win more than you risk.`,
+        ? `Free piece alert! Your ${pieceName(move.piece)} can take their ${capturedName}, with no immediate legal recapture on that square. Look out for their next move!`
+        : gain > 0
+          ? `This trade looks useful: take their ${capturedName} and compare what each side can capture back.`
+          : `An even exchange: your ${pieceName(move.piece)} can take their ${capturedName}, but they can capture back.`,
     };
 
     if (!best || gain > best.gain) {
@@ -307,10 +317,11 @@ const findSafeCheck = (
     const kingSquare = test.getKingSquare(test.turn);
     return {
       from: move.from,
+      promotion: move.promotion,
       to: move.to,
       concept: 'check',
       impactSquares: kingSquare ? [kingSquare] : [],
-      message: `Your ${pieceName(move.piece)} can say CHECK! Their king will have to react - that keeps you in charge.`,
+      message: `Your ${pieceName(move.piece)} can say CHECK! They must answer by moving, capturing, or blocking when possible.`,
     };
   }
   return null;
@@ -324,7 +335,8 @@ const findDevelopingMove = (
   const safeMoves = candidates.filter(
     (c) => c.risk === 0 && c.leavesHanging.length === 0
   );
-  const pool = safeMoves.length > 0 ? safeMoves : candidates;
+  const minimumRisk = Math.min(...candidates.map(c => c.risk));
+  const pool = safeMoves.length > 0 ? safeMoves : candidates.filter(c => c.risk === minimumRisk);
   if (pool.length === 0) return null;
 
   const homeRank = playerColor === 'w' ? '1' : '8';
@@ -342,15 +354,23 @@ const findDevelopingMove = (
   const picked = pickFrom[Math.floor(Math.random() * pickFrom.length)];
 
   const message =
-    development.length > 0
+    safeMoves.length === 0
+      ? `This is a tricky position. Try this move with your ${pieceName(picked.move.piece)}, then look at what your opponent can capture.`
+      : development.length > 0
       ? `Try bringing your ${pieceName(picked.move.piece)} into the game - pieces in the middle control more squares!`
-      : `Try moving your ${pieceName(picked.move.piece)} - it can go somewhere safe where nothing can capture it.`;
+      : `Try moving your ${pieceName(picked.move.piece)} - this move looks reasonable. Check what your opponent can do next.`;
 
   return {
     from: picked.move.from,
+    promotion: picked.move.promotion,
     to: picked.move.to,
     concept: 'develop',
     impactSquares: [],
     message,
   };
 };
+
+export function getTeachingHint(engine: ChessEngine, playerColor: Color): TeachingHint | null {
+  const hint = getTeachingHintBase(engine, playerColor);
+  return hint?.promotion ? {...hint, message:`${hint.message} When your pawn arrives, choose a ${pieceName(hint.promotion)}.`} : hint;
+}

@@ -19,51 +19,12 @@ interface SquareProps {
   isFlipped?: boolean;
 }
 
-// --- Aria label generators (using arrays for extensibility) ---
-
-type AriaModifier = {
-  condition: (piece: { type: PieceType; color: Color } | null, highlight: HighlightType) => boolean;
-  label: (piece: { type: PieceType; color: Color } | null, square: SquareType) => string;
-};
-
-const ARIA_MODIFIERS: AriaModifier[] = [
-  {
-    condition: (piece) => piece !== null,
-    label: (piece, square) => `${getPieceName(piece!.type)} on ${square}`,
-  },
-  {
-    condition: (_, highlight) => highlight === 'legalMove' || highlight === 'legalCapture',
-    label: () => ', can move here',
-  },
-  {
-    condition: (_, highlight) => highlight === 'danger' || highlight === 'inCheck',
-    label: () => ', in danger',
-  },
-  {
-    condition: (_, highlight) => highlight === 'hint',
-    label: () => ', suggested move',
-  },
-  {
-    condition: (_, highlight) => highlight === 'lastMoveFrom',
-    label: () => ', last move started here',
-  },
-  {
-    condition: (_, highlight) => highlight === 'lastMoveTo',
-    label: () => ', last move ended here',
-  },
-];
-
-const buildAriaLabel = (
-  square: SquareType,
-  piece: { type: PieceType; color: Color } | null,
-  highlight: HighlightType
-): string => {
-  const baseLabel = piece ? '' : square;
-  const modifiers = ARIA_MODIFIERS
-    .filter((mod) => mod.condition(piece, highlight))
-    .map((mod) => mod.label(piece, square));
-
-  return [baseLabel, ...modifiers].filter(Boolean).join('');
+const HIGHLIGHT_LABELS: Partial<Record<HighlightType, string>> = {
+  selected:'selected', legalMove:'legal move, check for threats', legalCapture:'capture available',
+  riskyMove:'risky destination', riskyCapture:'risky capture', leavesHanging:'move exposes another piece',
+  danger:'under attack', inCheck:'king in check', hint:'suggested move',
+  tacticSource:'tactical piece', tacticTarget:'tactical target',
+  lastMoveFrom:'last move started here', lastMoveTo:'last move ended here',
 };
 
 /**
@@ -89,24 +50,29 @@ export function Square({
   const coordTextColor = isLight ? 'text-amber-800/70' : 'text-amber-200/70';
 
   const highlightClass = getHighlightClass(highlight);
-  const ariaLabel = buildAriaLabel(square, piece, highlight);
+  const ariaLabel = [piece ? `${piece.color === 'w' ? 'White' : 'Black'} ${getPieceName(piece.type)} on ${square}` : square,
+    HIGHLIGHT_LABELS[highlight], pieceStatus && pieceStatus !== 'none' ?
+      ({hanging:'could lose material', threatened:'under attack', wouldAbandon:'moving the selected piece may expose this piece'}[pieceStatus]) : '']
+    .filter(Boolean).join(', ');
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
       onClick={onClick}
       aria-label={ariaLabel}
       className={cn(
         'relative aspect-square w-full',
         'transition-colors duration-150',
-        'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset',
-        highlightClass
+        'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset'
       )}
       style={{
         backgroundColor: isLight ? BOARD_COLORS.light : BOARD_COLORS.dark,
       }}
     >
+      {/* Keep the teaching tint above the base board color and below pieces. */}
+      <div
+        aria-hidden="true"
+        className={cn('absolute inset-0 pointer-events-none ring-inset', highlightClass)}
+      />
       {/* Piece */}
       {piece && (
         <Piece
@@ -140,6 +106,10 @@ export function Square({
         </div>
       )}
 
+      {['riskyMove', 'riskyCapture', 'leavesHanging', 'danger', 'inCheck'].includes(highlight) &&
+        <span aria-hidden="true" className="absolute top-0 right-0 rounded-full bg-white text-red-800 font-bold text-xs px-1 pointer-events-none">!</span>}
+      {highlight === 'hint' && <span aria-hidden="true" className="absolute top-0 right-0 bg-purple-800 text-white text-xs px-1 pointer-events-none">?</span>}
+      {highlight === 'tacticTarget' && <span aria-hidden="true" className="absolute top-0 right-0 bg-yellow-200 text-black text-xs px-1 pointer-events-none">★</span>}
       {/* Coordinates */}
       {showCoordinates && showFile && (
         <span className={cn('absolute bottom-0.5 right-1 text-xs font-medium pointer-events-none', coordTextColor)}>

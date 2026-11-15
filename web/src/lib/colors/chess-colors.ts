@@ -14,7 +14,7 @@ export const CHESS_HIGHLIGHTS: Record<HighlightType, string> = {
   legalCapture: 'ring-2 ring-green-500',
   riskyMove: '',  // Uses dot indicator instead
   riskyCapture: 'ring-2 ring-red-500',
-  leavesHanging: '',  // Uses dot indicator instead
+  leavesHanging: 'ring-2 ring-orange-500',  // Uses dot indicator instead
   danger: 'ring-2 ring-red-500 animate-danger-pulse',
   inCheck: 'bg-red-500/80 ring-4 ring-red-600 animate-check-pulse',
   tacticSource: 'bg-yellow-400/70 ring-2 ring-yellow-500 animate-tactic-sparkle',
@@ -38,14 +38,14 @@ export const CHESS_COLOR_LEGEND: LegendItem[] = [
   {
     color: 'bg-green-500',
     bgColor: 'bg-green-500/60',
-    label: 'Safe move!',
-    description: 'Green dot means safe place to move',
+    label: 'Looks okay',
+    description: 'Green dot means no immediate material loss found; check other threats',
   },
   {
     color: 'bg-green-600',
     bgColor: 'ring-2 ring-green-500',
     label: 'Can capture!',
-    description: 'Green ring means you can take a piece safely',
+    description: 'Green ring marks a capture; consider their reply',
   },
   {
     color: 'bg-red-500',
@@ -92,8 +92,8 @@ export const CHESS_COLOR_LEGEND_SIMPLE: LegendItem[] = [
   {
     color: 'bg-green-500',
     bgColor: 'bg-green-500/60',
-    label: 'Go here!',
-    description: 'Safe to move',
+    label: 'Try here',
+    description: 'No immediate material loss found; look at their reply',
   },
   {
     color: 'bg-red-500',
@@ -113,6 +113,8 @@ export const CHESS_COLOR_LEGEND_SIMPLE: LegendItem[] = [
     label: 'Great move!',
     description: 'Special move',
   },
+  {color:'bg-purple-400', bgColor:'bg-purple-400/60', label:'? Hint', description:'Purple question mark shows a suggested move'},
+  {color:'bg-blue-400', bgColor:'bg-blue-400/60', label:'Last move', description:'Blue and a grey ghost show where the last move went'},
 ];
 
 /**

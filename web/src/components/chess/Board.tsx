@@ -45,7 +45,7 @@ export function Board({
   return (
     <div
       className={cn(
-        'aspect-square w-full h-full',
+        'aspect-square w-full',
         'rounded-lg overflow-hidden shadow-lg',
 'p-1 bg-neutral-800', // Dark border wrapper
         className
@@ -60,7 +60,8 @@ export function Board({
           const rank = row + 1; // 1-8
           const square = `${file}${rank}` as SquareType;
           const piece = board[7 - row][col];
-          const isLight = (row + col) % 2 === 0;
+          // Standard chess orientation: a1 is dark and h1 is light.
+          const isLight = (row + col) % 2 !== 0;
           const highlight = highlights.get(square) || 'none';
 
           const pieceStatus = pieceStatuses?.get(square);
