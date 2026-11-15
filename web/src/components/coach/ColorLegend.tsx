@@ -27,6 +27,7 @@ export function ColorLegend({ isCompact, isSimple }: ColorLegendProps) {
       {legend.map((item) => (
         <div
           key={item.label}
+          title={item.description}
           className={cn(
             'flex items-center gap-1.5 px-2 py-1 rounded-full',
             'bg-white/60 border border-gray-200',
@@ -35,7 +36,7 @@ export function ColorLegend({ isCompact, isSimple }: ColorLegendProps) {
         >
           <div
             className={cn(
-              'w-3 h-3 rounded-full',
+              'w-3 h-3 rounded-full shrink-0',
               item.color,
               isCompact && 'w-2.5 h-2.5'
             )}

@@ -69,12 +69,12 @@ describe('Danger Detection', () => {
       expect(knight).toBeDefined();
     });
 
-    it('does NOT report a defended piece as hanging', () => {
+    it('warns when a cheaper attacker can win a defended piece', () => {
       // Black knight on f6 is attacked by the e5 pawn but defended by the g7 pawn
       const fen = 'rnbqkb1r/pppppppp/5n2/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
       const engine = createEngine(fen);
       const hanging = findHangingPieces(engine, 'b');
-      expect(hanging.find((h) => h.square === 'f6')).toBeUndefined();
+      expect(hanging.find((h) => h.square === 'f6')).toBeDefined();
     });
   });
 

@@ -1,5 +1,5 @@
 import { ChessEngine } from '@/lib/chess/engine';
-import { analyzeDanger, getDangerSquares } from '@/lib/chess/danger';
+import { analyzeDanger } from '@/lib/chess/danger';
 import { analyzeAllMoves } from '@/lib/chess/move-safety';
 import type { Square, Color, HighlightType, HighlightMap, TacticResult, ChessMove, MoveSafetyInfo } from '@/lib/chess/types';
 import type { TeachingHint } from '@/lib/chess/hints';
@@ -71,8 +71,7 @@ export function createLegalMoveHighlights(
   const moves = engine.getLegalMoves(selectedSquare);
 
   for (const move of moves) {
-    const targetPiece = engine.get(move.to);
-    const isCapture = targetPiece !== null;
+    const isCapture = !!move.captured;
     const safety = safetyMap.get(move.to);
 
     if (safety) {
@@ -94,10 +93,10 @@ export function createDangerHighlights(
   color: Color
 ): HighlightMap {
   const highlights: HighlightMap = new Map();
-  const dangerSquares = getDangerSquares(engine, color);
+  const analysis = analyzeDanger(engine, color);
+  const dangerSquares = analysis.threatenedPieces.map(piece => piece.square);
 
   for (const square of dangerSquares) {
-    const analysis = analyzeDanger(engine, color);
     if (analysis.isInCheck && square === engine.getKingSquare(color)) {
       highlights.set(square, 'inCheck');
     } else {

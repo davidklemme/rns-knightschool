@@ -1,231 +1,40 @@
 'use client';
-
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import {
-  Undo2,
-  Lightbulb,
-  Flag,
-  RotateCcw,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  BarChart3,
-  Microscope,
-} from 'lucide-react';
-
+import { Undo2, Lightbulb, Flag, RotateCcw, Eye, AlertTriangle, BarChart3, Microscope } from 'lucide-react';
 interface ActionBarProps {
-  onUndo: () => void;
-  onHint: () => void;
-  onResign: () => void;
-  onNewGame: () => void;
-  onToggleLegalMoves: () => void;
-  onToggleDanger: () => void;
-  onToggleEval: () => void;
-  onReview: () => void;
-  showLegalMoves: boolean;
-  showDanger: boolean;
-  showEval: boolean;
-  canUndo: boolean;
-  canReview: boolean;
-  isThinking: boolean;
-  isGameOver: boolean;
-  isCompact?: boolean;
+  onUndo:()=>void; onHint:()=>void; onResign:()=>void; onNewGame:()=>void;
+  onToggleLegalMoves:()=>void; onToggleDanger:()=>void; onToggleEval:()=>void; onReview:()=>void;
+  onRetry?:()=>void; aiError?:boolean;
+  showLegalMoves:boolean; showDanger:boolean; showEval:boolean; canUndo:boolean;
+  canReview:boolean; isThinking:boolean; isGameOver:boolean; isCompact?:boolean;
 }
-
-/**
- * ActionBar - Game control buttons
- */
-export function ActionBar({
-  onUndo,
-  onHint,
-  onResign,
-  onNewGame,
-  onToggleLegalMoves,
-  onToggleDanger,
-  onToggleEval,
-  onReview,
-  showLegalMoves,
-  showDanger,
-  showEval,
-  canUndo,
-  canReview,
-  isThinking,
-  isGameOver,
-  isCompact,
-}: ActionBarProps) {
-  return (
-    <TooltipProvider delayDuration={300}>
-      <div
-        className={cn(
-          'flex items-center justify-center gap-2 flex-wrap',
-          isCompact && 'gap-1'
-        )}
-      >
-        {/* Undo */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onUndo}
-              disabled={!canUndo || isThinking || isGameOver}
-              className="gap-1"
-            >
-              <Undo2 className="h-4 w-4" />
-              {!isCompact && <span>Undo</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Take back your last move</TooltipContent>
-        </Tooltip>
-
-        {/* Hint */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onHint}
-              disabled={isThinking || isGameOver}
-              className="gap-1 bg-yellow-50 hover:bg-yellow-100 border-yellow-300"
-            >
-              <Lightbulb className="h-4 w-4 text-yellow-600" />
-              {!isCompact && <span>Hint</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Get a helpful hint</TooltipContent>
-        </Tooltip>
-
-        {/* Toggle Legal Moves */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={showLegalMoves ? 'default' : 'outline'}
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onToggleLegalMoves}
-              className={cn(
-                'gap-1',
-                showLegalMoves &&
-                  'bg-green-500 hover:bg-green-600 text-white border-green-600'
-              )}
-            >
-              {showLegalMoves ? (
-                <Eye className="h-4 w-4" />
-              ) : (
-                <EyeOff className="h-4 w-4" />
-              )}
-              {!isCompact && <span>Moves</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {showLegalMoves ? 'Hide legal moves' : 'Show legal moves'}
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Toggle Danger */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={showDanger ? 'default' : 'outline'}
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onToggleDanger}
-              className={cn(
-                'gap-1',
-                showDanger &&
-                  'bg-red-500 hover:bg-red-600 text-white border-red-600'
-              )}
-            >
-              <AlertTriangle className="h-4 w-4" />
-              {!isCompact && <span>Danger</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {showDanger ? 'Hide danger warnings' : 'Show danger warnings'}
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Toggle Eval Bar */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={showEval ? 'default' : 'outline'}
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onToggleEval}
-              className={cn(
-                'gap-1',
-                showEval &&
-                  'bg-blue-500 hover:bg-blue-600 text-white border-blue-600'
-              )}
-            >
-              <BarChart3 className="h-4 w-4" />
-              {!isCompact && <span>Eval</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {showEval ? 'Hide position evaluation' : 'Show position evaluation'}
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Game Review */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size={isCompact ? 'sm' : 'default'}
-              onClick={onReview}
-              disabled={!canReview || isThinking}
-              className="gap-1 bg-purple-50 hover:bg-purple-100 border-purple-300"
-            >
-              <Microscope className="h-4 w-4 text-purple-600" />
-              {!isCompact && <span>Review</span>}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Analyze this game move by move</TooltipContent>
-        </Tooltip>
-
-        {/* Divider */}
-        <div className="w-px h-6 bg-gray-300 mx-1" />
-
-        {/* New Game / Resign */}
-        {isGameOver ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="default"
-                size={isCompact ? 'sm' : 'default'}
-                onClick={onNewGame}
-                className="gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-              >
-                <RotateCcw className="h-4 w-4" />
-                {!isCompact && <span>New Game</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Start a new game</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size={isCompact ? 'sm' : 'default'}
-                onClick={onResign}
-                disabled={isThinking}
-                className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
-              >
-                <Flag className="h-4 w-4" />
-                {!isCompact && <span>Resign</span>}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Give up this game</TooltipContent>
-          </Tooltip>
-        )}
+export function ActionBar(p:ActionBarProps) {
+  const controls = [
+    {label:'Undo', icon:Undo2, click:p.onUndo, disabled:!p.canUndo || p.isThinking},
+    {label:'Hint', icon:Lightbulb, click:p.onHint, disabled:p.isThinking || p.isGameOver},
+    {label:'Moves', icon:Eye, click:p.onToggleLegalMoves, pressed:p.showLegalMoves},
+    {label:'Danger', icon:AlertTriangle, click:p.onToggleDanger, pressed:p.showDanger},
+    {label:p.isGameOver ? 'New game' : 'Finish game', icon:p.isGameOver ? RotateCcw : Flag,
+      click:p.isGameOver ? p.onNewGame : p.onResign, disabled:p.isThinking},
+  ];
+  return <div className="flex flex-wrap items-center justify-center gap-2">
+    {p.aiError && <Button onClick={p.onRetry} disabled={p.isThinking}>Retry computer</Button>}
+    {controls.map(c => <Button key={c.label} variant={c.pressed ? 'default' : 'outline'}
+      aria-label={c.label} title={c.label} aria-pressed={c.pressed} disabled={c.disabled} onClick={c.click}
+      className={c.pressed ? 'bg-amber-700 text-white hover:bg-amber-800 gap-1' : 'gap-1'}>
+      <c.icon aria-hidden="true" className="h-4 w-4" />
+      <span className={p.isCompact ? 'sr-only' : ''}>{c.label}</span>
+    </Button>)}
+    <details className="rounded-md border bg-white/60 p-1">
+      <summary className="min-h-11 flex items-center cursor-pointer px-2 text-sm">Advanced / grown-ups</summary>
+      <div className="flex flex-wrap gap-2 p-1">
+        <Button variant="outline" aria-pressed={p.showEval} onClick={p.onToggleEval} className="gap-1">
+          <BarChart3 aria-hidden="true" className="h-4 w-4" />Evaluation
+        </Button>
+        <Button variant="outline" onClick={p.onReview} disabled={!p.canReview || p.isThinking} className="gap-1">
+          <Microscope aria-hidden="true" className="h-4 w-4" />Review
+        </Button>
       </div>
-    </TooltipProvider>
-  );
+    </details>
+  </div>;
 }

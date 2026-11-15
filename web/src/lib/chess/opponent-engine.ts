@@ -26,8 +26,8 @@ export interface PositionAnalysis extends EngineEvaluation {
 export interface OpponentEngine {
   init: () => Promise<void>;
   setSkillLevel: (level: SkillLevel) => Promise<void>;
-  /** Best move in UCI format (e.g. "e2e4", "e7e8q"), or null to signal
-   *  "no engine move - caller picks a fallback/teaching move". */
+  /** Best move in UCI format (e.g. "e2e4", "e7e8q"), or null if unavailable/no legal move.
+   *  Failures must be retried, never silently replaced with random play. */
   getBestMove: (fen: string, thinkingTime?: number) => Promise<string | null>;
   getEvaluation: (fen: string, depth?: number) => Promise<EngineEvaluation | null>;
   /** Full-strength eval + best move + line for game review. Optional -

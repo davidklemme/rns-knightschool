@@ -15,12 +15,13 @@
  * All engine access is serialized through a queue: the worker is a single
  * UCI session, so a position evaluation (eval bar) and a move search must
  * never interleave - otherwise one search's "bestmove" resolves the other
- * request and the AI ends up playing fallback random moves.
+ * request. Failed searches are surfaced to the player for retry.
  */
 
 import type { SkillLevel, SkillConfig } from './types';
 import type { OpponentEngine, PositionAnalysis } from './opponent-engine';
 import { SKILL_CONFIGS } from './types';
+import { chooseTeachingMove } from './teaching-opponent';
 
 // --- Utility functions ---
 
@@ -45,7 +46,7 @@ const getThinkingDelay = (config: SkillConfig): number => {
 // Multi-threaded Stockfish needs SharedArrayBuffer, which only exists in
 // cross-origin isolated contexts (COOP/COEP headers). If it's unavailable
 // we must use the single-threaded build - otherwise the worker dies and
-// every "strong" game silently degrades to random fallback moves.
+// the stronger levels cannot start their preferred worker.
 const supportsMultiThreaded = (): boolean =>
   typeof SharedArrayBuffer !== 'undefined' &&
   (typeof crossOriginIsolated === 'undefined' || crossOriginIsolated);
@@ -66,6 +67,9 @@ export const createStockfishService = (
   skillLevel: SkillLevel = 'learning'
 ): StockfishService => {
   let stockfish: Worker | null = null;
+  let disposed = false;
+  let multiFailed = false;
+  let pendingReadyReject: ((error: Error) => void) | null = null;
   let isEngineReady = false;
   let currentConfig = SKILL_CONFIGS[skillLevel];
   let currentEngineType: 'single' | 'multi' | null = null;
@@ -77,7 +81,8 @@ export const createStockfishService = (
   // Serialize all engine operations - one UCI search at a time.
   let queueTail: Promise<unknown> = Promise.resolve();
   const enqueue = <T>(op: () => Promise<T>): Promise<T> => {
-    const run = queueTail.then(op, op);
+    const guarded = () => disposed ? Promise.reject(new Error('Engine closed')) : op();
+    const run = queueTail.then(guarded, guarded);
     queueTail = run.then(
       () => undefined,
       () => undefined
@@ -148,24 +153,53 @@ export const createStockfishService = (
   // Send command to Stockfish
   const sendCommand = (command: string): void => {
     if (stockfish) {
-      stockfish.postMessage(command);
+      try { stockfish.postMessage(command); } catch {
+        invalidateWorker();
+        throw new Error('Engine unavailable');
+      }
     }
   };
 
-  // Wait for ready response
+  // Detach the old worker before resolving anything: late events must never
+  // complete a later request on a replacement worker.
+  const invalidateWorker = (): void => {
+    const old = stockfish;
+    stockfish = null;
+    isEngineReady = false;
+    currentEngineType = null;
+    lastEvalInfo = null;
+    lastPv = [];
+    if (old) {
+      old.onmessage = null;
+      old.onerror = null;
+      old.terminate();
+    }
+    const rejectReady = pendingReadyReject;
+    pendingReady = null;
+    pendingReadyReject = null;
+    rejectReady?.(new Error('Engine unavailable'));
+    const finish = pendingBestmove;
+    pendingBestmove = null;
+    finish?.(null);
+  };
+
   const waitForReady = (command: 'uci' | 'isready'): Promise<void> => {
     return new Promise((resolve, reject) => {
-      pendingReady = resolve;
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        if (pendingReady === resolve) {
-          pendingReady = null;
-          reject(new Error(`Timeout waiting for ${command}`));
-        }
+      const timer = setTimeout(() => {
+        pendingReady = null;
+        pendingReadyReject = null;
+        reject(new Error(`Timeout waiting for ${command}`));
       }, 10000);
-
-      sendCommand(command);
+      pendingReady = () => {
+        clearTimeout(timer);
+        pendingReadyReject = null;
+        resolve();
+      };
+      pendingReadyReject = (error) => {
+        clearTimeout(timer);
+        reject(error);
+      };
+      try { sendCommand(command); } catch { invalidateWorker(); }
     });
   };
 
@@ -178,6 +212,7 @@ export const createStockfishService = (
     if (targetElo >= 1320) {
       // Stockfish handles its own strength limiting via UCI_Elo
       const uciElo = Math.min(3190, targetElo);
+      sendCommand('setoption name Skill Level value 20');
       sendCommand('setoption name UCI_LimitStrength value true');
       sendCommand(`setoption name UCI_Elo value ${uciElo}`);
     } else {
@@ -215,17 +250,15 @@ export const createStockfishService = (
 
       stopTimer = setTimeout(() => {
         // Ask the engine to wrap up; it will emit bestmove promptly
-        sendCommand('stop');
+        try { sendCommand('stop'); } catch { invalidateWorker(); return; }
         graceTimer = setTimeout(() => {
           if (pendingBestmove === finish) {
-            pendingBestmove = null;
-            console.warn('Search did not respond to stop');
-            finish(null);
+            invalidateWorker();
           }
         }, 2000);
       }, timeoutMs);
 
-      sendCommand(goCommand);
+      try { sendCommand(goCommand); } catch { invalidateWorker(); }
     });
   };
 
@@ -253,10 +286,11 @@ export const createStockfishService = (
     stockfish = new Worker(engineUrl);
     currentEngineType = engineType;
 
-    stockfish.onmessage = handleStockfishMessage;
-    stockfish.onerror = (error) => {
-      console.error('Stockfish error:', error);
+    const worker = stockfish;
+    worker.onmessage = event => {
+      if (stockfish === worker) handleStockfishMessage(event);
     };
+    worker.onerror = () => { if (stockfish === worker) invalidateWorker(); };
 
     // Initialize UCI
     await waitForReady('uci');
@@ -268,14 +302,16 @@ export const createStockfishService = (
   // Load the best available engine for the current config, falling back to
   // the single-threaded build if the multi-threaded one can't run/start.
   const loadEngine = async (): Promise<void> => {
-    const wantMulti = currentConfig.useMultiThreaded && supportsMultiThreaded();
+    const wantMulti = currentConfig.useMultiThreaded && supportsMultiThreaded() && !multiFailed;
 
     if (wantMulti) {
       try {
         await loadEngineType('multi');
         return;
       } catch (error) {
-        console.warn('Multi-threaded Stockfish failed, falling back to single-threaded:', error);
+        multiFailed = true;
+        invalidateWorker();
+        console.warn('Multi-threaded engine unavailable; using single-threaded:', error);
       }
     }
 
@@ -284,13 +320,13 @@ export const createStockfishService = (
 
   // Ensure an engine is running (queued operations call this first)
   const ensureEngine = async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || typeof Worker === 'undefined') {
+    if (disposed || typeof window === 'undefined' || typeof Worker === 'undefined') {
       console.warn('Web Workers not available, Stockfish disabled');
       return false;
     }
 
     // The right engine type may have changed with the skill level
-    const wantMulti = currentConfig.useMultiThreaded && supportsMultiThreaded();
+    const wantMulti = currentConfig.useMultiThreaded && supportsMultiThreaded() && !multiFailed;
     const wantType: 'single' | 'multi' = wantMulti ? 'multi' : 'single';
 
     if (isEngineReady && stockfish && currentEngineType === wantType) {
@@ -302,7 +338,7 @@ export const createStockfishService = (
       return isEngineReady;
     } catch (error) {
       console.error('Failed to initialize Stockfish:', error);
-      isEngineReady = false;
+      invalidateWorker();
       return false;
     }
   };
@@ -335,18 +371,16 @@ export const createStockfishService = (
     const artificialDelay = getThinkingDelay(currentConfig);
     await delay(artificialDelay);
 
-    // For sub-1320 ELO levels, use aiMistakeRate to sometimes skip Stockfish entirely
-    // This is indicated by returning null, which tells the caller to pick a random move
-    if (currentConfig.elo < 1320 && Math.random() < currentConfig.aiMistakeRate) {
-      return null;
-    }
-
     return enqueue(async () => {
       if (!(await ensureEngine())) {
         console.warn('Stockfish not ready, returning null');
         return null;
       }
 
+      if (currentConfig.elo < 1320 && Math.random() < currentConfig.aiMistakeRate) {
+        const teachingMove = chooseTeachingMove(fen);
+        if (teachingMove) return teachingMove;
+      }
       applyPlayOptions();
       sendCommand(`position fen ${fen}`);
 
@@ -434,16 +468,8 @@ export const createStockfishService = (
   };
 
   const terminate = (): void => {
-    if (stockfish) {
-      sendCommand('stop');
-      sendCommand('quit');
-      stockfish.terminate();
-      stockfish = null;
-    }
-    isEngineReady = false;
-    currentEngineType = null;
-    pendingReady = null;
-    pendingBestmove = null;
+    disposed = true;
+    invalidateWorker();
   };
 
   const isReady = (): boolean => isEngineReady;

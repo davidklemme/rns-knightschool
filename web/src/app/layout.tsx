@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import {MotionPreferences} from '@/components/layout/MotionPreferences';
 
 export const metadata: Metadata = {
   title: 'KnightSchool - Learn Chess the Fun Way',
@@ -13,7 +14,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><MotionPreferences>{children}</MotionPreferences></body>
     </html>
   );
 }

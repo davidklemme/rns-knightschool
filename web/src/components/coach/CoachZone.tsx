@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReadAloud } from './ReadAloud';
 import { ColorLegend } from './ColorLegend';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +9,7 @@ interface CoachZoneProps {
   playerName: string | null;
   message: string | null;
   isCompact?: boolean;
+  isThinking?: boolean;
   isSimpleMode?: boolean;
 }
 
@@ -24,6 +26,7 @@ export function CoachZone({
   playerName,
   message,
   isCompact,
+  isThinking,
   isSimpleMode,
 }: CoachZoneProps) {
   const greeting = playerName ? `${playerName}'s` : 'Your';
@@ -73,6 +76,7 @@ export function CoachZone({
           <ColorLegend isCompact={isCompact} isSimple={isSimpleMode} />
         </div>
 
+        {isThinking && <p role="status" className="text-sm text-gray-600">Computer is thinking…</p>}
         {/* Coach Message */}
         <div
           className={cn(
@@ -80,7 +84,7 @@ export function CoachZone({
             isCompact && 'p-2'
           )}
         >
-          <p
+          <p role="status" aria-live="polite" aria-atomic="true"
             className={cn(
               'text-gray-700 leading-relaxed',
               isCompact ? 'text-sm' : 'text-base'
@@ -90,6 +94,7 @@ export function CoachZone({
           </p>
         </div>
 
+        <ReadAloud text={message || defaultMessage} />
         {/* Hint for using the hint button */}
         <p
           className={cn(

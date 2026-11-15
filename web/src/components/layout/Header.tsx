@@ -88,17 +88,18 @@ export function Header({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  'px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium',
+                  'min-h-11 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium',
                   'bg-gradient-to-r from-amber-100 to-orange-100',
                   'border border-amber-300 text-amber-800',
                   'hover:from-amber-200 hover:to-orange-200',
                   'transition-colors cursor-pointer',
                   'flex items-center gap-1'
                 )}
+                aria-label={`Computer difficulty: ${config.label}`}
                 disabled={isThinking}
               >
                 <span className="truncate max-w-[60px] sm:max-w-none">{config.label}</span>
-                <span className="hidden md:inline text-xs">({config.elo})</span>
+
                 <ChevronDown className="h-3 w-3 flex-shrink-0" />
               </button>
             </DropdownMenuTrigger>
@@ -113,10 +114,11 @@ export function Header({
                       'flex justify-between cursor-pointer',
                       level === skillLevel && 'bg-amber-100'
                     )}
+                    textValue={levelConfig.label}
                   >
                     <span>{levelConfig.label}</span>
                     <span className="text-xs text-muted-foreground">
-                      {levelConfig.elo} ELO
+                      {level === skillLevel ? '✓' : ''}
                     </span>
                   </DropdownMenuItem>
                 );
@@ -138,6 +140,7 @@ export function Header({
                 variant="outline"
                 size="sm"
                 onClick={onNewGame}
+                aria-label="New game"
                 className="gap-1 px-2 sm:px-3"
               >
                 <RotateCcw className="h-4 w-4" />
